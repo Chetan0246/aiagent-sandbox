@@ -21,19 +21,26 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install Dependencies & CLI
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bubblewrap
+
+    - name: Install Python Package
       run: |
         python -m pip install --upgrade pip
         pip install .
 
-    - name: Run Unit Tests
+    - name: Run Full Test Suite
       run: |
         python -m unittest discover -s tests
 
-    - name: Test CLI Interface
+    - name: Test CLI Subcommands
       run: |
         aegis-sandbox --help
         aegis-sandbox probe --gateway 127.0.0.1
+        aegis-sandbox scan --sudoers configs/sudoers/agentuser.sudoers
+        aegis-sandbox run --backend namespaces -- echo "Aegis Sandbox CI Enforcement Verified"
         aegis-sandbox report --json
 
     - name: Validate Sudoers Configuration Syntax

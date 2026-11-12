@@ -94,7 +94,11 @@ class GTFOBinsScanner:
         """Parses a sudoers file and flags unmitigated GTFOBins commands."""
         path = Path(sudoers_path)
         if not path.exists():
-            raise FileNotFoundError(f"Sudoers file not found: {sudoers_path}")
+            candidate = Path(__file__).resolve().parent.parent.parent / sudoers_path
+            if candidate.exists():
+                path = candidate
+            else:
+                raise FileNotFoundError(f"Sudoers file not found: {sudoers_path}")
 
         findings: List[ScanFinding] = []
         with open(path, "r", encoding="utf-8") as f:
