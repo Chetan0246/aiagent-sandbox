@@ -1,0 +1,29 @@
+version: "1.0"
+name: "permissive-debug-sandbox"
+description: "Weakened sandbox policy used as a positive control baseline"
+
+resources:
+  memory_max: "max"
+  memory_swap_max: "max"
+  tasks_max: 1000
+  cpu_quota: "100%"
+
+security:
+  seccomp_profile: "disabled"
+  drop_capabilities: []
+  read_only_root: false
+  ephemeral_dirs: []
+
+network:
+  mode: "host"
+  proxy_port: 0
+  allowed_domains:
+    - "*"
+
+secrets:
+  broker_enabled: false
+  mapped_tokens: {}
+
+audit:
+  enabled: true
+  log_path: "audit.jsonl"
