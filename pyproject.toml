@@ -27,3 +27,6 @@ aegis = "aegissandbox.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+aegissandbox = ["data/*.json"]

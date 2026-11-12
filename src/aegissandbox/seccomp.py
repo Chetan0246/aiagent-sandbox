@@ -27,16 +27,37 @@ DEFAULT_DROPPED_CAPABILITIES: List[str] = [
 ]
 
 
+def resolve_seccomp_path(path: Optional[str | Path] = None) -> Path:
+    """Resolves seccomp profile location across package data, repo root, and CWD."""
+    if path:
+        p = Path(path)
+        if p.exists():
+            return p.resolve()
+
+    # Check packaged copy
+    pkg_cand = Path(__file__).resolve().parent / "data" / "strict.json"
+    if pkg_cand.exists():
+        return pkg_cand.resolve()
+
+    # Check CWD
+    cwd_cand = Path.cwd() / "configs" / "seccomp" / "strict.json"
+    if cwd_cand.exists():
+        return cwd_cand.resolve()
+
+    # Check parents
+    for parent in Path(__file__).resolve().parents:
+        cand = parent / "configs" / "seccomp" / "strict.json"
+        if cand.exists():
+            return cand.resolve()
+
+    return DEFAULT_SECCOMP_PATH
+
+
 def load_seccomp_profile(path: Optional[str | Path] = None) -> Dict[str, Any]:
     """Loads an OCI-compliant seccomp JSON profile."""
-    target_path = Path(path) if path else DEFAULT_SECCOMP_PATH
+    target_path = resolve_seccomp_path(path)
     if not target_path.exists():
-        # Fallback to local relative lookup if running from different root
-        fallback = Path("configs/seccomp/strict.json")
-        if fallback.exists():
-            target_path = fallback
-        else:
-            raise FileNotFoundError(f"Seccomp profile not found at {target_path}")
+        raise FileNotFoundError(f"Seccomp profile not found at {target_path}")
 
     with open(target_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -62,9 +83,11 @@ def is_syscall_blocked(profile: Dict[str, Any], syscall_name: str) -> bool:
 
 def get_podman_seccomp_args(profile_path: Optional[str | Path] = None) -> List[str]:
     """Generates Podman/Docker command line arguments to apply the seccomp profile."""
-    target_path = Path(profile_path) if profile_path else DEFAULT_SECCOMP_PATH
-    abs_path = os.path.abspath(str(target_path))
-    return ["--security-opt", f"seccomp={abs_path}"]
+    target_path = resolve_seccomp_path(profile_path)
+    if target_path.exists():
+        abs_path = os.path.abspath(str(target_path))
+        return ["--security-opt", f"seccomp={abs_path}"]
+    return []
 
 
 def get_podman_capability_args(drop_all: bool = True, add_caps: Optional[List[str]] = None) -> List[str]:
