@@ -40,10 +40,13 @@ class SandboxRunner:
     def execute(
         self,
         command: List[str],
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
+        env: Optional[Dict[str, str]] = None
     ) -> ExecutionResult:
         """Executes a command with all isolation layers, network proxy, and secrets brokering active."""
-        env: Dict[str, str] = {}
+        exec_env: Dict[str, str] = {}
+        if env:
+            exec_env.update(env)
 
         # 1. Setup Secrets Broker
         if self.secrets_broker and self.policy.secrets.mapped_tokens:
@@ -53,7 +56,7 @@ class SandboxRunner:
                     real_secret=real_val,
                     allowed_domains=self.policy.network.allowed_domains
                 )
-            env.update(self.secrets_broker.get_agent_environment())
+            exec_env.update(self.secrets_broker.get_agent_environment())
 
         # 2. Setup Egress Allowlist Proxy
         proxy_port = self.policy.network.proxy_port or 8080
@@ -69,16 +72,16 @@ class SandboxRunner:
             )
             self.proxy.start()
             proxy_url = f"http://127.0.0.1:{proxy_port}"
-            env["HTTP_PROXY"] = proxy_url
-            env["HTTPS_PROXY"] = proxy_url
-            env["http_proxy"] = proxy_url
-            env["https_proxy"] = proxy_url
+            exec_env["HTTP_PROXY"] = proxy_url
+            exec_env["HTTPS_PROXY"] = proxy_url
+            exec_env["http_proxy"] = proxy_url
+            exec_env["https_proxy"] = proxy_url
             time.sleep(0.1)
 
         # 3. Setup and execute inside backend
         try:
             self.backend.setup(self.policy)
-            res = self.backend.run(command, self.policy, env=env, timeout=timeout)
+            res = self.backend.run(command, self.policy, env=exec_env, timeout=timeout)
         finally:
             if self.proxy:
                 self.proxy.stop()
