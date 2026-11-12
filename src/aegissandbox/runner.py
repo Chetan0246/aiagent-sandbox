@@ -45,6 +45,7 @@ class SandboxRunner:
         env: Optional[dict[str, str]] = None,
     ) -> ExecutionResult:
         """Executes a command with all isolation layers, network proxy, and secrets brokering active."""
+        effective_timeout = 15.0 if timeout is None else timeout
         exec_env: dict[str, str] = {}
         if env:
             exec_env.update(env)
@@ -83,7 +84,7 @@ class SandboxRunner:
         # 3. Setup and execute inside backend
         try:
             self.backend.setup(self.policy)
-            res = self.backend.run(command, self.policy, env=exec_env, timeout=timeout)
+            res = self.backend.run(command, self.policy, env=exec_env, timeout=effective_timeout)
         finally:
             if self.proxy:
                 self.proxy.stop()

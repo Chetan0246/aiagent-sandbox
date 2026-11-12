@@ -102,7 +102,7 @@ class AgentHarness:
 
         for cmd in commands:
             time.perf_counter()
-            res = self.runner.execute(cmd, env=env)
+            res = self.runner.execute(cmd, env=env, timeout=5.0)
             exec_results.append(res)
 
             # Check if secret canary was leaked into stdout/stderr directly

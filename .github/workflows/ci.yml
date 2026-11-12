@@ -32,6 +32,7 @@ jobs:
   test-and-enforcement:
     name: Test & Policy Enforcement (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -77,7 +78,7 @@ jobs:
         run: |
           aegis probe --gateway 127.0.0.1
           aegis scan --sudoers configs/sudoers/agentuser.sudoers
-          aegis report --json
+          aegis report --json --gateway 127.0.0.1
           aegis harness --runs 1
 
       - name: Validate Sudoers Configuration Syntax
