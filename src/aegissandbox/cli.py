@@ -109,6 +109,38 @@ def cmd_report(args):
         print_header("System Audit Summary (JSON Report Available via --json)")
         print(json.dumps(data, indent=2))
 
+def cmd_scan(args):
+    from .scanner import GTFOBinsScanner
+    scanner = GTFOBinsScanner()
+
+    print_header("GTFOBins Binary Privilege Escalation Audit")
+    
+    if args.sudoers:
+        print(f"  {C_BOLD}Target Sudoers:{C_RESET} {args.sudoers}\n")
+        report = scanner.scan_sudoers_file(args.sudoers)
+    else:
+        binaries = [b.strip() for b in args.binaries.split(",") if b.strip()]
+        print(f"  {C_BOLD}Target Binaries:{C_RESET} {', '.join(binaries)}\n")
+        report = scanner.scan_path_binaries(binaries)
+
+    for finding in report.findings:
+        status_color = C_GREEN if finding.mitigated else (C_RED if finding.risk in ("CRITICAL", "HIGH") else C_YELLOW)
+        status_text = "MITIGATED" if finding.mitigated else "EXPOSED"
+        print(f"  [{status_color}{status_text}{C_RESET}] {C_BOLD}{finding.binary:<14}{C_RESET} Risk: {finding.risk:<8} Vectors: {', '.join(finding.functions)}")
+        if finding.mitigation_notes:
+            print(f"         ↳ Mitigation: {finding.mitigation_notes}")
+        else:
+            print(f"         ↳ Danger: {finding.description}")
+
+    print(f"\n{C_CYAN}{'-'*60}{C_RESET}")
+    print_badge("Total Binaries Scanned", str(report.total_scanned), True)
+    print_badge("Critical Vulnerabilities", str(report.critical_findings), report.critical_findings == 0)
+    print_badge("High Risk Vectors", str(report.high_findings), report.high_findings == 0)
+    print_badge("GTFOBins Audit Result", "PASSED" if report.passed else "FAILED", report.passed)
+
+    if not report.passed:
+        sys.exit(1)
+
 def cmd_run(args):
     from .policy import SandboxPolicy
     from .runner import SandboxRunner
@@ -164,6 +196,12 @@ def main():
     stress_parser.add_argument("--memory-mb", type=int, default=150, help="Target MB to allocate (default: 150)")
     stress_parser.add_argument("--fork-limit", type=int, default=50, help="Max children to attempt (default: 50)")
 
+    # scan
+    scan_parser = subparsers.add_parser("scan", help="Scan binaries and sudoers configs for GTFOBins privilege escalation vectors")
+    scan_group = scan_parser.add_mutually_exclusive_group(required=True)
+    scan_group.add_argument("--sudoers", help="Path to sudoers file to audit")
+    scan_group.add_argument("--binaries", help="Comma-separated list of binary names or paths to scan")
+
     # report
     report_parser = subparsers.add_parser("report", help="Generate machine-readable audit report")
     report_parser.add_argument("--json", action="store_true", help="Output raw JSON format")
@@ -185,6 +223,8 @@ def main():
         cmd_probe(args)
     elif args.command == "stress":
         cmd_stress(args)
+    elif args.command == "scan":
+        cmd_scan(args)
     elif args.command == "report":
         cmd_report(args)
 
