@@ -1,37 +1,45 @@
-# AI Agent Sandbox: Empirical Isolation, Boundary Enforcement & Stress Testing
+<div align="center">
 
+# 🛡️ Aegis-Sandbox
+### *Empirical Isolation, Boundary Enforcement & Stress Testing Suite for Autonomous AI Agents*
+
+[![CI](https://github.com/Chetan0246/aiagent-sandbox/actions/workflows/ci.yml/badge.svg)](https://github.com/Chetan0246/aiagent-sandbox/actions/workflows/ci.yml)
 [![Debian](https://img.shields.io/badge/Debian-13.7_Trixie-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
 [![Kernel](https://img.shields.io/badge/Kernel-6.12.x_x86__64-black?logo=linux&logoColor=white)](https://kernel.org/)
 [![Hypervisor](https://img.shields.io/badge/Hypervisor-KVM_%2F_QEMU-E66D14?logo=qemu&logoColor=white)](https://www.linux-kvm.org/)
 [![Cgroups](https://img.shields.io/badge/Cgroups-v2_Unified-4B8BBE)](https://www.freedesktop.org/software/systemd/man/latest/systemd.slice.html)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An empirical research and security engineering suite evaluating boundary enforcement, resource exhaustion, privilege delegation, and out-of-band recovery for autonomous AI agent environments.
+[**Read the Research Whitepaper**](docs/WHITE_PAPER.md) • [**View Master Empirical Log**](docs/test_results.md) • [**Explore Hardening Blueprints**](configs/)
+
+</div>
 
 ---
 
 ## 📌 Table of Contents
-- [Executive Overview](#-executive-overview)
-- [Why AI Agents Require Dedicated VM Sandboxing](#-why-ai-agents-require-dedicated-vm-sandboxing)
-- [Container vs. Virtual Machine Isolation Matrix](#-container-vs-virtual-machine-isolation-matrix)
-- [Sandbox Architecture & Topology](#-sandbox-architecture--topology)
-- [Empirical Test Suite & Results Matrix](#-empirical-test-suite--results-matrix)
-- [Critical Discoveries & Vulnerability Analyses](#-critical-discoveries--vulnerability-analyses)
+- [Executive Summary](#-executive-summary)
+- [Why AI Agents Break Traditional Sandboxes](#-why-ai-agents-break-traditional-sandboxes)
+- [Architectural Isolation Matrix: Containers vs. VMs](#-architectural-isolation-matrix-containers-vs-vms)
+- [Sandbox Architecture & Supervisory Control](#-sandbox-architecture--supervisory-control)
+- [Aegis-Sandbox CLI Showcase](#-aegis-sandbox-cli-showcase)
+- [Empirical Findings & Vulnerability Deep Dives](#-empirical-findings--vulnerability-deep-dives)
   - [1. The Sudoers Slice-Bypass Trap](#1-the-sudoers-slice-bypass-trap)
   - [2. Default TasksMax Thread Starvation](#2-default-tasksmax-thread-starvation)
   - [3. Swap as a Deceptive OOM Buffer](#3-swap-as-a-deceptive-oom-buffer)
-  - [4. Out-of-Band Supervisor Kill Efficacy](#4-out-of-band-supervisor-kill-efficacy)
-- [Hardening Blueprints](#-hardening-blueprints)
-- [Repository Structure](#-repository-structure)
+  - [4. Out-of-Band Supervisor Recovery (< 50ms)](#4-out-of-band-supervisor-recovery--50ms)
+- [Comprehensive Empirical Test Matrix](#-comprehensive-empirical-test-matrix)
+- [The 4-Pillar Production Hardening Framework](#-the-4-pillar-production-hardening-framework)
+- [Repository Layout](#-repository-layout)
 - [Quickstart & Reproduction Guide](#-quickstart--reproduction-guide)
 
 ---
 
-## 🔬 Executive Overview
+## 🔬 Executive Summary
 
-Autonomous AI agents possess capabilities fundamentally different from traditional sandboxed software: they execute arbitrary shell scripts, chain developer tools, generate self-modifying code, spawn child sub-agents, and actively debug permission blocks. When exposed to external input, they can also become subject to **indirect prompt injection**.
+Autonomous AI agents (e.g., Devin, OpenHands, AutoGPT, Claude Code) represent a paradigm shift in execution security: unlike traditional deterministic software, **agents execute arbitrary bash commands, install system dependencies, self-debug execution failures, and run concurrent sub-agents**. When exposed to untrusted external input (web pages, repositories, APIs), they become vulnerable to **indirect prompt injection**.
 
-This repository documents exhaustive, empirical stress testing and boundary probing performed inside a deliberately constrained **Debian 13 minimal virtual machine** managed by KVM/QEMU, running under a strict operational contract.
+**Aegis-Sandbox** is an empirical research suite, hardening blueprint, and automated verification CLI evaluating isolation boundaries, resource exhaustion thresholds, living-off-the-land privilege escalation, and out-of-band recovery under real hardware virtualization (Debian 13 minimal guest under KVM/QEMU).
 
 ```
                       ┌────────────────────────────────────────────────────────┐
@@ -42,8 +50,8 @@ This repository documents exhaustive, empirical stress testing and boundary prob
   ┌───────────────────────────────────────────────┴───────────────────────────────────────────────┐
   │ Guest Virtual Machine: debian-minimal (192.168.122.71 / 1 vCPU / 512MB RAM)                   │
   │                                                                                               │
-  │   [Administrative Domain] (UID 1000: chetan)                                                  │
-  │     - user-1000.slice (Unconstrained out-of-band supervisor session)                          │
+  │   [Administrative Supervisor Domain] (UID 1000: chetan)                                       │
+  │     - user-1000.slice (Isolated out-of-band management session)                               │
   │                                                                                               │
   │   [Constrained Agent Domain] (UID 1001: agentuser)                                            │
   │     - user-1001.slice (MemoryMax=448M, MemorySwapMax=128M, TasksMax=256)                      │
@@ -55,93 +63,151 @@ This repository documents exhaustive, empirical stress testing and boundary prob
   │            ▼                                                                                  │
   │     [Filesystem Hierarchy]                                                                    │
   │       ├── /tmp     ──▶ 233 MiB tmpfs (ephemeral, memory-backed)                               │
-  │       └── /var/tmp ──▶ 7.4 GiB ext4 root partition (/dev/vda1)                                │
+  │       ├── /var/tmp ──▶ 256 MiB tmpfs (shielded mount; prevents root disk fill)                │
+  │       └── /        ──▶ 7.4 GiB ext4 root partition (/dev/vda1)                                │
   └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛡️ Why AI Agents Require Dedicated VM Sandboxing
+## ⚠️ Why AI Agents Break Traditional Sandboxes
 
-Conventional container runtimes (Docker, Podman, LXC) rely on **shared host Linux kernels** isolated through cgroups and namespaces. While effective for trusted microservices, containers introduce unacceptable risks when executing autonomous LLM workloads:
+Most developer sandbox architectures rely on **shared-kernel containers (Docker/Podman)**. For autonomous LLM agents, containers introduce fatal vulnerabilities:
 
-1. **Shared Ring 0 Attack Surface**: Any kernel vulnerability (e.g., `Dirty Pipe`, eBPF verification bugs, race conditions in `sys_clone`) allows an untrusted agent process to compromise the physical host.
-2. **Ambient Authority & Sudo Leaks**: Granting an agent sudo or docker socket access within a container typically leads to instant host root compromise via mount injections or device nodes.
-3. **Hypervisor Hardware Boundaries**: In a hardware-assisted VM (KVM), all system calls terminate in the *guest kernel*. Even if the agent gains root privileges inside the guest, it remains hardware-trapped by CPU VT-x/AMD-V virtualization rings.
+1. **Shared Ring 0 Attack Surface**: All agent syscalls hit the host kernel. A single kernel vulnerability (e.g., `Dirty Pipe`, eBPF flaw) compromises the physical host.
+2. **Sudo / Docker Socket Leakage**: When agents are given `sudo` or Docker access to install dependencies, container breakouts to the host are trivial via device nodes or cgroup release agents.
+3. **Hypervisor Hardware Wall**: In a hardware-assisted VM (KVM), privileged CPU instructions trap to the hypervisor (Ring -1). Even if an agent acquires guest `root`, it remains hardware-trapped inside the VM.
 
 ---
 
-## 📊 Container vs. Virtual Machine Isolation Matrix
+## 📊 Architectural Isolation Matrix: Containers vs. VMs
 
-| Architectural Vector | Container (Docker / Podman) | MicroVM (Firecracker / Cloud Hypervisor) | Full Virtual Machine (KVM / QEMU) |
+| Vector | Container (Docker / Podman) | MicroVM (Firecracker / Kata) | Full Hardware VM (KVM / QEMU) |
 | :--- | :--- | :--- | :--- |
-| **Kernel Model** | **Shared Host Kernel** | **Dedicated Minimal Guest Kernel** | **Full Dedicated Guest Kernel** |
-| **Hypervisor Security Wall** | None (cgroup/namespace boundaries only) | Hardware Virtualization (KVM ring-1) | Hardware Virtualization (KVM / QEMU) |
-| **Agent Gaining Root Privileges** | **Critical Risk**: Host escape via `/proc`, `/sys`, or cgroup mounts | **Contained**: Restricted to minimal microVM guest | **Contained**: Restricted entirely to guest VM |
-| **Startup Latency** | Milliseconds (< 100ms) | Tens of milliseconds (5ms – 25ms) | Seconds (3s – 12s) |
-| **Process Isolation** | Host PID mapping | Independent guest PID space | Independent guest PID space |
-| **Out-of-Band Supervisor Kill** | Partial (depends on host cgroup hygiene) | Instantaneous (`vmm` termination) | Instantaneous (`systemctl stop user-$UID.slice` or `virsh destroy`) |
+| **Kernel Model** | **Shared Host Kernel** | **Dedicated Guest Kernel** | **Full Dedicated Guest Kernel** |
+| **Isolation Mechanism** | Namespaces & Cgroups (Software) | Hardware Virtualization (KVM VT-x) | Hardware Virtualization (KVM VT-x) |
+| **Agent Acquiring Root** | **Critical Host Compromise Risk** | **Contained** inside MicroVM | **Contained** inside Virtual Machine |
+| **Out-of-Band Supervisor Kill** | Partial (shared host resource risks) | Instantaneous (`vmm` terminate) | Instantaneous (`systemctl stop user-$UID.slice`) |
+| **Cold Boot Latency** | < 100 ms | 5 ms – 25 ms | 2 s – 6 s |
+| **Density & Overhead** | Extremely High | High | Moderate |
 
 ---
 
-## 📈 Empirical Test Suite & Results Matrix
+## 🛠️ Aegis-Sandbox CLI Showcase
 
-The entire multi-phase battery was executed sequentially under an automated observation protocol. All exit codes, stdout/stderr, and kernel ring logs are preserved in [docs/test_results.md](docs/test_results.md).
+The repository includes a modern, modular Python command-line tool (`aegis-sandbox`) providing automated boundary auditing, network probing, and resource stress testing:
 
-| Phase | Test Scope | Applied Stress / Target | Observed Behavior | Verdict |
-| :--- | :--- | :--- | :--- | :---: |
-| **Phase 1** | Sanity Checks | `whoami`, `uname -a`, storage, SSH, `apt-get` | Debian 13 (Linux 6.12), UID 1001, root ext4 7.4G, RAM 464M available. | **PASS** |
-| **Phase 2A** | Memory Limits | 600M allocation on 512M VM | Swap absorbed spillover; `ulimit -v` and `ulimit -d` enforced `MemoryError`. | **PASS** |
-| **Phase 2B** | CPU / Inodes / Disk | 3x `yes > /dev/null`, 50k inodes, `/tmp` fill | 100% CPU on 1 vCPU didn't drop SSH; `/tmp` tmpfs failed at 232MB (`ENOSPC`) without touching `/`. | **PASS** |
-| **Safe Fork** | Process Caps | `ulimit -u 50` & `TasksMax=30` | Cleanly hit `EAGAIN` (`[Errno 11] Resource temporarily unavailable`) at exact thresholds. | **PASS** |
-| **Phase 3** | Boundary Holds | `/sys/fs/cgroup`, `/dev/vda`, gateway:22 | Write to cgroup denied; raw block write denied; hypervisor gateway refused connections. | **BOUNDARY HELD** |
-| **Phase 4** | Robustness & Lockout | SSH audit, idempotent apt, live ssh reload | Modern OpenSSH 9.9p1 ciphers; `systemctl restart ssh` maintained live session without drop. | **PASS** |
-| **Phase 5** | Sustained Stress | 120s memory loop, 5k race condition lines | 0 OOM kills; 5,000 parallel lines written without 1 corrupted byte; 0 kernel panics. | **PASS** |
-| **Hard Limits** | Hard Walls | Real root ext4 fill (`/var/tmp/fill`), 600M OOM | `/var/tmp` triggered real ext4 `ENOSPC` at 6.1GB; `MemorySwapMax=0` triggered instant OOM kill. | **PASS** |
-| **Slice Escape** | Privilege Audit | `sudo systemd-run`, `sudo nsenter` | Unrestricted sudo allowed escaping user slice into `system.slice`. | **CRITICAL FINDING** |
-| **Adv. Phase 1**| Secret Bleed | `/etc/shadow`, `/root`, IMDS probe | Permission denied on system files; IMDS connection timed out. | **PASS** |
-| **Adv. Phase 2**| Sub-Agent Scope | Spawning background worker sub-agents | Sub-agents placed in parent slice; share identical 256 task pool. | **PASS** |
-| **Adv. Phase 3**| GTFOBins Probe | SUID audit, `find -exec` probes | Zero dangerous SUID binaries; `find` abuse blocked by DAC. | **PASS** |
-| **Adv. Phase 4**| Network Boundary | Gateway ports (22, 80, 5900, 8080) | All hypervisor management ports CLOSED/FILTERED. | **PASS** |
-| **Adv. Phase 5**| Error Drift | Read-only directory write, `fcntl` flock | Cleanly trapped errors; non-blocking lock prevented sub-agent race conditions. | **PASS** |
-| **Adv. Phase 6**| Ephemerality | Shell profiles, crontab, `/tmp` sweep | Zero residual files, zero cron entries, zero injected profile hooks. | **PASS** |
-| **Phase 7** | Sudoers Lockdown | Probing 5 blocked commands (`systemd-run`, `nsenter`, `tee`) | All 5 escape commands denied with exit 1; allowlisted commands (ssh, dmesg) active. | **PASS (ESCAPE CLOSED)** |
-| **Phase 8** | Storage Shielding | Mounting `/var/tmp` on `tmpfs` (256M) & disk fill | Fill failed at 256M on `tmpfs`; real root ext4 stayed clean at 18% used. | **PASS** |
-| **Phase 9** | Injection Defense | Parameterized `subprocess.run(shell=False)` | Command injection tokens treated as literal bytes; 0 payload execution. | **PASS** |
-| **Phase 10** | Multi-Agent Load | 3 concurrent workers (Disk I/O, CPU math, RAM buffer) | CFS scheduler balanced tasks; 0 lock thrashing; SSH responsive. | **PASS** |
+```bash
+# Install Aegis-Sandbox
+pip install .
+
+# 1. Run full security posture and cgroup boundary audit
+aegis-sandbox audit
+
+# 2. Probe hypervisor network gateway management ports
+aegis-sandbox probe --gateway 192.168.122.1
+
+# 3. Execute safe, self-reaping resource stress tests
+aegis-sandbox stress --memory-mb 150 --fork-limit 50
+
+# 4. Generate machine-readable JSON security report
+aegis-sandbox report --json
+```
+
+```
+============================================================
+🛡️  Aegis-Sandbox :: Security Posture & Isolation Audit
+============================================================
+
+[1] Cgroup v2 Resource Ceilings:
+  [✔] memory.max                   -> 469762048 (HARD LIMIT)
+  [✔] memory.swap.max              -> 134217728 (HARD LIMIT)
+  [✔] pids.max                     -> 256 (HARD LIMIT)
+
+[2] Sensitive Filesystem DAC Boundaries:
+  [✔] /etc/shadow                  -> BOUNDARY_HELD
+  [✔] /root                        -> BOUNDARY_HELD
+  [✔] /proc/1/environ              -> BOUNDARY_HELD
+
+[3] Storage Decoupling & Ephemerality:
+  [✔] /tmp isolated (tmpfs)        -> tmpfs
+  [✔] /var/tmp isolated (tmpfs)    -> tmpfs
+
+[4] Cloud Metadata Service (IMDS) Probe:
+  [✔] 169.254.169.254:80           -> BOUNDARY_HELD
+```
 
 ---
 
-## 🔍 Critical Discoveries & Vulnerability Analyses
+## 🔍 Empirical Findings & Vulnerability Deep Dives
 
 ### 1. The Sudoers Slice-Bypass Trap
 ```bash
-# Executed by agentuser with (ALL) NOPASSWD: ALL
+# Executed by agentuser with blanket (ALL) NOPASSWD: ALL
 sudo systemd-run --system --scope /bin/true
 sudo nsenter --target 1 --mount /bin/true
 ```
-* **Discovery**: When an agent account is granted blanket sudo rights (`NOPASSWD: ALL`), it can spawn arbitrary workloads inside `system.slice` (via `systemd-run`) or enter PID 1's namespaces (via `nsenter`). This **completely neutralizes all user slice cgroup caps** (`MemoryMax`, `TasksMax`).
-* **Mitigation**: Deploy a strict allowlist denying `systemd-run`, `nsenter`, `chroot`, `unshare`, and systemd property editing tools (see [configs/sudoers/agentuser.sudoers](configs/sudoers/agentuser.sudoers)).
+* **Vulnerability**: Standard sudo privileges allow an agent to launch processes inside `system.slice` (via `systemd-run`) or enter PID 1's namespaces (via `nsenter`), **completely bypassing all user slice cgroup caps** (`MemoryMax`, `TasksMax`).
+* **Remediation**: Deploy a strict allowlist denying `systemd-run`, `nsenter`, `chroot`, `unshare`, and systemd property editing tools (see [configs/sudoers/agentuser.sudoers](configs/sudoers/agentuser.sudoers)).
 
 ### 2. Default TasksMax Thread Starvation
-* **Discovery**: Systemd 257 / Debian 13 sets `TasksMax=1114` by default for user slices. On a 512 MB machine with 1 vCPU, 1,114 tasks causes severe kernel thread-table exhaustion, leading to SSH child fork failures (`sshd-session: fatal: fork of unprivileged child failed`).
-* **Mitigation**: Hard-cap user slices to `TasksMax=256` or `100` via [override.conf](configs/systemd/user-1001.slice.d/override.conf).
+* **Vulnerability**: Systemd sets `TasksMax=1114` by default for user slices. On a 512 MB machine with 1 vCPU, 1,114 tasks cause severe kernel thread-table exhaustion, leading to SSH child fork failures (`sshd-session: fatal: fork of unprivileged child failed`).
+* **Remediation**: Hard-cap user slices to `TasksMax=256` or `100` via [override.conf](configs/systemd/user-1001.slice.d/override.conf).
 
 ### 3. Swap as a Deceptive OOM Buffer
-* **Discovery**: Stressing memory with 600 MB on a 512 MB VM failed to trigger the Linux kernel OOM killer because total virtual memory was ~943 MB (464 MB RAM + 479 MB Swap).
-* **Mitigation**: To guarantee deterministic memory testing and prevent thrashing, `MemorySwapMax=0` or `MemorySwapMax=128M` must be explicitly configured.
+* **Vulnerability**: Allocating 600 MB on a 512 MB VM failed to trigger the Linux kernel OOM killer because total virtual memory was ~943 MB (464 MB RAM + 479 MB Swap). Swap absorbed the spillover, masking memory exhaustion and causing latency spikes.
+* **Remediation**: Bounded swap limits (`MemorySwapMax=0` or `MemorySwapMax=128M`) are mandatory for deterministic memory constraints.
 
-### 4. Out-of-Band Supervisor Kill Efficacy
+### 4. Out-of-Band Supervisor Recovery (< 50ms)
 ```bash
 # Executed from administrative session (chetan / UID 1000)
 sudo systemctl stop user-1001.slice
 ```
-* **Discovery**: When `agentuser` was saturated with 407 runaway sleep processes, issuing a slice stop from the separate administrative session (`chetan`, UID 1000 in `user-1000.slice`) **instantly reaped all 407 tasks in under 50ms**.
+* **Discovery**: When `agentuser` was saturated with 407 runaway sleep processes, issuing a slice stop from the separate administrative session (`chetan`, UID 1000) **instantly reaped all 407 tasks in under 50ms**.
 * **Impact**: The host and VM's `sshd` daemon remained 100% active, and a fresh agent login succeeded immediately with clean state.
 
 ---
 
-## 🛠️ Hardening Blueprints
+## 📈 Comprehensive Empirical Test Matrix
+
+All 16 test suites were executed sequentially under a strict non-destructive protocol. Detailed logs with exact exit codes and kernel dmesg outputs are preserved in [docs/test_results.md](docs/test_results.md).
+
+| Suite | Category | Applied Stress / Target | Observed Behavior | Verdict |
+| :--- | :--- | :--- | :--- | :---: |
+| **Phase 1** | Sanity Checks | `whoami`, `uname -a`, storage, SSH, `apt-get` | Debian 13 (Linux 6.12), UID 1001, root ext4 7.4G, RAM 464M. | **PASS** |
+| **Phase 2A** | Memory Limits | 600M allocation on 512M VM | Swap absorbed burst; `ulimit -v` and `ulimit -d` enforced `MemoryError`. | **PASS** |
+| **Phase 2B** | CPU / Inodes / Disk | 3x `yes > /dev/null`, 50k inodes, `/tmp` fill | 100% CPU on 1 vCPU didn't drop SSH; `/tmp` tmpfs failed at 232MB (`ENOSPC`). | **PASS** |
+| **Safe Fork** | Process Caps | `ulimit -u 50` & `TasksMax=30` | Cleanly hit `EAGAIN` (`[Errno 11] Resource temporarily unavailable`). | **PASS** |
+| **Phase 3** | Boundary Holds | `/sys/fs/cgroup`, `/dev/vda`, gateway:22 | Write to cgroup denied; raw block write denied; gateway refused connections. | **BOUNDARY HELD** |
+| **Phase 4** | Robustness | SSH audit, idempotent apt, live ssh reload | Modern OpenSSH 9.9p1 ciphers; `systemctl restart ssh` maintained live session. | **PASS** |
+| **Phase 5** | Sustained Stress | 120s memory loop, 5k race condition lines | 0 OOM kills; 5,000 parallel lines written without 1 corrupted byte; 0 panics. | **PASS** |
+| **Hard Limits**| Hard Walls | Real root ext4 fill (`/var/tmp/fill`), 600M OOM | `/var/tmp` triggered real ext4 `ENOSPC` at 6.1GB; `MemorySwapMax=0` triggered instant OOM. | **PASS** |
+| **Slice Escape**| Privilege Audit| `sudo systemd-run`, `sudo nsenter` | Unrestricted sudo allowed escaping user slice into `system.slice`. | **CRITICAL FINDING** |
+| **Adv. Phase 1**| Secret Bleed | `/etc/shadow`, `/root`, IMDS probe | Permission denied on system files; IMDS connection timed out. | **PASS** |
+| **Adv. Phase 2**| Sub-Agent Scope | Spawning background worker sub-agents | Sub-agents placed in parent slice; share identical 256 task pool. | **PASS** |
+| **Adv. Phase 3**| GTFOBins Probe | SUID audit, `find -exec` probes | Zero dangerous SUID binaries; `find` abuse blocked by DAC. | **PASS** |
+| **Adv. Phase 4**| Network Boundary| Gateway ports (22, 80, 5900, 8080) | All hypervisor management ports CLOSED/FILTERED. | **PASS** |
+| **Adv. Phase 5**| Error Drift | Read-only directory write, `fcntl` flock | Cleanly trapped errors; non-blocking lock prevented sub-agent race conditions. | **PASS** |
+| **Adv. Phase 6**| Ephemerality | Shell profiles, crontab, `/tmp` sweep | Zero residual files, zero cron entries, zero injected profile hooks. | **PASS** |
+| **Phase 7** | Sudoers Lockdown| Probing 5 blocked commands (`systemd-run`, `nsenter`, `tee`)| All 5 escape commands denied with exit 1; allowlisted commands active. | **PASS (ESCAPE CLOSED)** |
+| **Phase 8** | Storage Shielding| Mounting `/var/tmp` on `tmpfs` (256M) & disk fill | Fill failed at 256M on `tmpfs`; real root ext4 stayed clean at 18% used. | **PASS** |
+| **Phase 9** | Injection Defense| Parameterized `subprocess.run(shell=False)` | Command injection tokens treated as literal bytes; 0 payload execution. | **PASS** |
+| **Phase 10** | Multi-Agent Load| 3 concurrent workers (Disk I/O, CPU math, RAM buffer)| CFS scheduler balanced tasks; 0 lock thrashing; SSH responsive. | **PASS** |
+
+---
+
+## 🏛️ The 4-Pillar Production Hardening Framework
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   THE 4-PILLAR HARDENING BLUEPRINT                     │
+├────────────────────────────────┬───────────────────────────────────────┤
+│ Pillar I: Hypervisor Ring 0    │ Hardware VT-x / Dedicated KVM Guest   │
+│ Pillar II: Cgroup v2 Limits    │ MemoryMax=448M, Swap=128M, Tasks=256  │
+│ Pillar III: Sudoers Jail       │ Explicit deny on systemd-run, nsenter │
+│ Pillar IV: Ephemeral Mounts    │ tmpfs on /tmp (233M) & /var/tmp (256M)│
+└────────────────────────────────┴───────────────────────────────────────┘
+```
 
 ### 1. Systemd Slice Enforcement
 Deploy to `/etc/systemd/system/user-1001.slice.d/override.conf`:
@@ -187,50 +253,66 @@ agentuser ALL=(ALL) !/usr/bin/systemd-run, \
 ```
 
 ### 3. Ephemeral Storage Mounts
-Protect the root filesystem from disk exhaustion by placing `/var/tmp` on `tmpfs`:
+Decouple persistent storage from temporary file writes in `/etc/fstab`:
 ```fstab
-# /etc/fstab
+tmpfs   /tmp       tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 ```
 
 ---
 
-## 📂 Repository Structure
+## 📂 Repository Layout
 
 ```
-├── README.md                      # Primary research & hardening document
+├── .github/
+│   ├── workflows/ci.yml           # Automated unit testing & sudoers syntax validation
+│   └── ISSUE_TEMPLATE/            # Standardized bug and feature issue templates
 ├── configs/
 │   ├── sudoers/
-│   │   └── agentuser.sudoers      # Hardened deny-list closing slice-escape vectors
+│   │   └── agentuser.sudoers      # Hardened allowlist/deny-list closing slice-escape vectors
 │   ├── systemd/
 │   │   └── user-1001.slice.d/
-│   │       └── override.conf      # Hard cgroup v2 resource limits
+│   │       └── override.conf      # Cgroup v2 limits (MemoryMax=448M, Swap=128M, Tasks=256)
 │   └── vm/
-│       └── debian-minimal.xml     # Complete libvirt / KVM domain definition
+│       └── debian-minimal.xml     # Full libvirt/KVM domain XML definition
 ├── docs/
-│   ├── agent_rules.md             # Standard operating contract & reporting schema
-│   ├── phase1_sanity_checks.md    # Baseline verification report
-│   └── test_results.md            # Master 57 KB test log with verbatim logs
-└── scripts/
-    ├── run_stress_tests.sh        # In-sandbox automated test suite
-    └── setup_vm.sh                # Automated KVM provisioning script
+│   ├── WHITE_PAPER.md             # Formal research paper on agent isolation
+│   ├── agent_rules.md             # Standard agent operational contract & safety rules
+│   ├── phase1_sanity_checks.md    # Dedicated baseline environment verification
+│   └── test_results.md            # Master 60 KB empirical test log with verbatim logs
+├── scripts/
+│   ├── run_stress_tests.sh        # Automated in-sandbox verification & stress probe
+│   └── setup_vm.sh                # Unattended KVM/QEMU provisioning script
+├── src/aegissandbox/              # Aegis-Sandbox Python CLI & verification library
+│   ├── __init__.py
+│   ├── cli.py                     # Interactive CLI interface (audit, probe, stress, report)
+│   ├── probes.py                  # Cgroup, file permission, IMDS & gateway probes
+│   └── stress.py                  # Safe, self-reaping resource stress routines
+├── tests/
+│   └── test_cli.py                # Unit test suite for Aegis-Sandbox modules
+├── CONTRIBUTING.md                # Community contribution guidelines
+├── LICENSE                        # MIT License
+└── pyproject.toml                 # Modern PEP 517/621 Python package configuration
 ```
 
 ---
 
 ## 🚀 Quickstart & Reproduction Guide
 
-### 1. Provision the Sandbox
+### 1. Install Aegis-Sandbox Locally
 ```bash
 git clone https://github.com/Chetan0246/aiagent-sandbox.git
 cd aiagent-sandbox
-chmod +x scripts/*.sh
+pip install -e .
+```
 
-# Provision KVM VM using libvirt
+### 2. Provision the KVM Sandbox
+```bash
+chmod +x scripts/*.sh
 ./scripts/setup_vm.sh /path/to/debian-13.7.0-amd64-netinst.iso
 ```
 
-### 2. Apply Cgroup Limits
+### 3. Deploy Hardening Configurations
 ```bash
 # Inside the VM (as root or administrator)
 sudo cp configs/systemd/user-1001.slice.d/override.conf /etc/systemd/system/user-1001.slice.d/
@@ -239,10 +321,11 @@ sudo chmod 440 /etc/sudoers.d/agentuser
 sudo systemctl daemon-reload
 ```
 
-### 3. Run the Stress Suite
+### 4. Verify Boundaries with the CLI
 ```bash
 # As agentuser inside the sandbox
-./scripts/run_stress_tests.sh
+aegis-sandbox audit
+aegis-sandbox probe
 ```
 
 ---

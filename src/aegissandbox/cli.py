@@ -1,0 +1,148 @@
+"""Aegis-Sandbox CLI: Evaluation and boundary verification tool for AI agents."""
+
+import sys
+import json
+import argparse
+from typing import Dict, Any
+
+from .probes import (
+    check_cgroups,
+    audit_sensitive_files,
+    probe_network_gateway,
+    check_imds_reachability,
+    check_mount_isolation
+)
+from .stress import (
+    run_fork_probe,
+    run_memory_probe,
+    run_concurrency_stress
+)
+
+# ANSI terminal formatting
+C_RESET = "\033[0m"
+C_BOLD = "\033[1m"
+C_GREEN = "\033[32m"
+C_RED = "\033[31m"
+C_YELLOW = "\033[33m"
+C_CYAN = "\033[36m"
+C_GRAY = "\033[90m"
+
+def print_header(title: str):
+    print(f"\n{C_CYAN}{C_BOLD}{'='*60}{C_RESET}")
+    print(f"{C_BOLD}🛡️  Aegis-Sandbox :: {title}{C_RESET}")
+    print(f"{C_CYAN}{C_BOLD}{'='*60}{C_RESET}")
+
+def print_badge(label: str, status: str, ok: bool):
+    color = C_GREEN if ok else C_RED
+    symbol = "✔" if ok else "✖"
+    print(f"  [{color}{symbol}{C_RESET}] {C_BOLD}{label:<28}{C_RESET} -> {color}{status}{C_RESET}")
+
+def cmd_audit(args):
+    print_header("Security Posture & Isolation Audit")
+    
+    # 1. Cgroups
+    print(f"\n{C_BOLD}[1] Cgroup v2 Resource Ceilings:{C_RESET}")
+    cg = check_cgroups()
+    if "error" in cg:
+        print_badge("Cgroups Status", cg["error"], False)
+    else:
+        for k, v in cg.get("limits", {}).items():
+            is_unlimited = v in ["max", "infinity", "1114"]
+            status_text = f"{v} (UNCONSTRAINED)" if is_unlimited else f"{v} (HARD LIMIT)"
+            print_badge(k, status_text, not is_unlimited)
+            
+    # 2. Sensitive Files
+    print(f"\n{C_BOLD}[2] Sensitive Filesystem DAC Boundaries:{C_RESET}")
+    files = audit_sensitive_files()
+    for f in files:
+        print_badge(f["target"], f["status"], not f["accessible"])
+
+    # 3. Mount Isolation
+    print(f"\n{C_BOLD}[3] Storage Decoupling & Ephemerality:{C_RESET}")
+    mounts = check_mount_isolation()
+    print_badge("/tmp isolated (tmpfs)", mounts.get("tmp_fstype", "unknown"), mounts.get("tmp_isolated", False))
+    print_badge("/var/tmp isolated (tmpfs)", mounts.get("var_tmp_fstype", "unknown"), mounts.get("var_tmp_isolated", False))
+
+    # 4. IMDS
+    print(f"\n{C_BOLD}[4] Cloud Metadata Service (IMDS) Probe:{C_RESET}")
+    imds = check_imds_reachability()
+    print_badge(imds["target"], imds["status"], not imds["reachable"])
+
+def cmd_probe(args):
+    print_header("Network & Boundary Probes")
+    print(f"\n{C_BOLD}Probing Hypervisor Gateway ({args.gateway}):{C_RESET}")
+    results = probe_network_gateway(gateway_ip=args.gateway)
+    for r in results:
+        print_badge(r["target"], r["status"], r["secure"])
+
+def cmd_stress(args):
+    print_header("Controlled Resource Stress Testing")
+    
+    # Memory probe
+    print(f"\n{C_BOLD}[1] Probing Memory Allocation ({args.memory_mb} MB):{C_RESET}")
+    mem_res = run_memory_probe(target_mb=args.memory_mb)
+    print_badge(f"Alloc {args.memory_mb} MB", "SUCCESS" if mem_res["success"] else f"FAILED: {mem_res['error']}", mem_res["success"])
+    
+    # Fork probe
+    print(f"\n{C_BOLD}[2] Probing Fork Ceiling ({args.fork_limit} attempts):{C_RESET}")
+    fork_res = run_fork_probe(max_procs=args.fork_limit)
+    status_str = f"Spawned {fork_res['successfully_spawned']} (Hit limit: {fork_res['hit_ceiling']})"
+    print_badge("Fork Probe", status_str, True)
+    
+    # Concurrency
+    print(f"\n{C_BOLD}[3] Multi-Worker CPU Concurrency (3 workers):{C_RESET}")
+    conc_res = run_concurrency_stress(workers=3, duration=1.5)
+    print_badge("Concurrency Stress", f"Completed in {conc_res['total_elapsed_seconds']}s", conc_res["completed"])
+
+def cmd_report(args):
+    data = {
+        "cgroups": check_cgroups(),
+        "sensitive_files": audit_sensitive_files(),
+        "mounts": check_mount_isolation(),
+        "imds": check_imds_reachability(),
+        "gateway": probe_network_gateway(gateway_ip=args.gateway),
+    }
+    
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        print_header("System Audit Summary (JSON Report Available via --json)")
+        print(json.dumps(data, indent=2))
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="aegis-sandbox",
+        description="Aegis-Sandbox: Autonomous AI Agent Isolation & Security Verification Suite"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # audit
+    subparsers.add_parser("audit", help="Run comprehensive security posture audit")
+
+    # probe
+    probe_parser = subparsers.add_parser("probe", help="Probe hypervisor and network boundary ports")
+    probe_parser.add_argument("--gateway", default="192.168.122.1", help="Hypervisor gateway IP (default: 192.168.122.1)")
+
+    # stress
+    stress_parser = subparsers.add_parser("stress", help="Execute controlled resource limits stress test")
+    stress_parser.add_argument("--memory-mb", type=int, default=150, help="Target MB to allocate (default: 150)")
+    stress_parser.add_argument("--fork-limit", type=int, default=50, help="Max children to attempt (default: 50)")
+
+    # report
+    report_parser = subparsers.add_parser("report", help="Generate machine-readable audit report")
+    report_parser.add_argument("--json", action="store_true", help="Output raw JSON format")
+    report_parser.add_argument("--gateway", default="192.168.122.1", help="Hypervisor gateway IP")
+
+    args = parser.parse_args()
+    
+    if args.command == "audit":
+        cmd_audit(args)
+    elif args.command == "probe":
+        cmd_probe(args)
+    elif args.command == "stress":
+        cmd_stress(args)
+    elif args.command == "report":
+        cmd_report(args)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,41 @@
+name: Aegis-Sandbox CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Dependencies & CLI
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+
+    - name: Run Unit Tests
+      run: |
+        python -m unittest discover -s tests
+
+    - name: Test CLI Interface
+      run: |
+        aegis-sandbox --help
+        aegis-sandbox probe --gateway 127.0.0.1
+        aegis-sandbox report --json
+
+    - name: Validate Sudoers Configuration Syntax
+      run: |
+        sudo visudo -c -f configs/sudoers/agentuser.sudoers
