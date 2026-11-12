@@ -160,6 +160,25 @@ Hardware virtualization guarantees that even if an agent acquires total root pri
 
 ---
 
-## 8. Conclusion
+## 8. Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
+
+<!-- BENCHMARK_TABLE_START -->
+### 🔬 Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
+
+> **Test Environment**: Fedora Linux 44 (KDE Plasma Desktop Edition) | Kernel `7.2.15-200.fc44.x86_64` | CPU: `AMD Ryzen 7 250 w/ Radeon 780M Graphics` (16 vCPUs) | Host RAM: `14610.0 MB` | Benchmark Date: `2026-11-12T17:34:39Z`
+
+| Backend Isolation Model | Security Boundary Type | Startup Latency (Median ± $\sigma$) | Compute Latency (SHA256) | Boundary Trap Latency | Memory Overhead | Containment Rate |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Linux Namespaces (`bwrap`)** | Software User/PID/Mount NS + Read-Only Bind | **7.29 ms** (±0.92 ms) | 29.07 ms | 9.29 ms | ~0.8 MB | **100.0%** |
+| **Rootless Podman (OCI)** | Unprivileged UserNS + Seccomp BPF + Cap Drops | **162.81 ms** (±9.39 ms) | 138.11 ms | 156.31 ms | ~14.2 MB | **100.0%** |
+| **Hardware VM (KVM/QEMU)** | Hardware VT-x/AMD-V + Separate Guest Ring 0 | **116.52 ms** (±45.57 ms) | 132.85 ms | 119.59 ms | ~184.0 MB | **100.0%** |
+
+*Empirically recorded using `scripts/run_benchmarks.py` across 10 consecutive randomized trials under active enforcement.*
+<!-- BENCHMARK_TABLE_END -->
+
+---
+
+## 9. Conclusion
 
 Autonomous AI agents introduce unprecedented operational hazards into execution environments. By combining hardware-assisted virtualization with disciplined in-guest cgroup constraints, restrictive sudoers allowlists, and ephemeral filesystem decoupling, organizations can safely harness the power of autonomous AI while guaranteeing strict containment and sub-second out-of-band recovery.
+

@@ -82,6 +82,21 @@ Most developer sandbox architectures rely on **shared-kernel containers (Docker/
 
 ## 📊 Architectural Isolation Matrix: Containers vs. VMs
 
+<!-- BENCHMARK_TABLE_START -->
+### 🔬 Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
+
+> **Test Environment**: Fedora Linux 44 (KDE Plasma Desktop Edition) | Kernel `7.2.15-200.fc44.x86_64` | CPU: `AMD Ryzen 7 250 w/ Radeon 780M Graphics` (16 vCPUs) | Host RAM: `14610.0 MB` | Benchmark Date: `2026-11-12T17:34:39Z`
+
+| Backend Isolation Model | Security Boundary Type | Startup Latency (Median ± $\sigma$) | Compute Latency (SHA256) | Boundary Trap Latency | Memory Overhead | Containment Rate |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Linux Namespaces (`bwrap`)** | Software User/PID/Mount NS + Read-Only Bind | **7.29 ms** (±0.92 ms) | 29.07 ms | 9.29 ms | ~0.8 MB | **100.0%** |
+| **Rootless Podman (OCI)** | Unprivileged UserNS + Seccomp BPF + Cap Drops | **162.81 ms** (±9.39 ms) | 138.11 ms | 156.31 ms | ~14.2 MB | **100.0%** |
+| **Hardware VM (KVM/QEMU)** | Hardware VT-x/AMD-V + Separate Guest Ring 0 | **116.52 ms** (±45.57 ms) | 132.85 ms | 119.59 ms | ~184.0 MB | **100.0%** |
+
+*Empirically recorded using `scripts/run_benchmarks.py` across 10 consecutive randomized trials under active enforcement.*
+<!-- BENCHMARK_TABLE_END -->
+
+
 | Vector | Container (Docker / Podman) | MicroVM (Firecracker / Kata) | Full Hardware VM (KVM / QEMU) |
 | :--- | :--- | :--- | :--- |
 | **Kernel Model** | **Shared Host Kernel** | **Dedicated Guest Kernel** | **Full Dedicated Guest Kernel** |
@@ -93,24 +108,82 @@ Most developer sandbox architectures rely on **shared-kernel containers (Docker/
 
 ---
 
-## 🛠️ Aegis-Sandbox CLI Showcase
+## 🛠️ Aegis-Sandbox CLI & Enforcement Showcase
 
-The repository includes a modern, modular Python command-line tool (`aegis-sandbox`) providing automated boundary auditing, network probing, and resource stress testing:
+Aegis-Sandbox is both an **active execution containment engine** and a **security verification suite**.
+
+### 1. Active Enforcement Execution (`aegis-sandbox run`)
+Run untrusted agent commands inside declarative isolation boundaries across 3 backends:
 
 ```bash
-# Install Aegis-Sandbox
-pip install .
+# Execute inside unprivileged Linux User Namespaces (bwrap) with read-only rootfs
+aegis-sandbox run --backend namespaces --policy configs/policies/strict.yaml -- python3 -c "print('hello from sandbox')"
 
-# 1. Run full security posture and cgroup boundary audit
+# Execute inside Rootless Podman container with dropped capabilities and seccomp BPF filter
+aegis-sandbox run --backend container --policy configs/policies/strict.yaml -- uname -a
+
+# Execute inside Hardware KVM Virtual Machine over SSH with systemd user-slice enforcement
+aegis-sandbox run --backend kvm --policy configs/policies/strict.yaml -- uptime
+```
+
+```
+============================================================
+🛡️  Aegis-Sandbox :: Active Enforcement Execution :: NAMESPACES
+============================================================
+  Policy:     strict-agent-sandbox
+  Backend:    namespaces
+  Command:    python3 -c print('hello from sandbox')
+------------------------------------------------------------
+hello from sandbox
+
+------------------------------------------------------------
+  [✔] Exit Code                    -> 0
+  [✔] Duration                     -> 7.12 ms
+  [✔] Security Boundary            -> CLEAN / CONTAINED
+```
+
+### 2. Automated GTFOBins Privilege Escalation Scanner (`aegis-sandbox scan`)
+Audit sudoers configurations or binary paths for privilege escalation vectors, shell escapes, or arbitrary file overwrites:
+
+```bash
+# Audit sudoers configuration
+aegis-sandbox scan --sudoers configs/sudoers/agentuser.sudoers
+
+# Audit specific binaries or allowed PATH manifests
+aegis-sandbox scan --binaries "systemd-run,find,grep,cat"
+```
+
+```
+============================================================
+🛡️  Aegis-Sandbox :: GTFOBins Binary Privilege Escalation Audit
+============================================================
+  Target Sudoers: configs/sudoers/agentuser.sudoers
+
+  [MITIGATED] systemctl      Risk: HIGH     Vectors: sudo
+         ↳ Mitigation: Restricted to safe read-only subcommands: is-active
+  [MITIGATED] systemctl      Risk: HIGH     Vectors: sudo
+         ↳ Mitigation: Restricted to safe read-only subcommands: status
+  [MITIGATED] tee            Risk: HIGH     Vectors: file_write, sudo
+         ↳ Mitigation: Explicitly denied in sudoers configuration (!)
+------------------------------------------------------------
+  [✔] Total Binaries Scanned       -> 14
+  [✔] Critical Vulnerabilities     -> 0
+  [✔] High Risk Vectors            -> 0
+  [✔] GTFOBins Audit Result        -> PASSED
+```
+
+### 3. Auditing, Probing, and Stress Testing
+```bash
+# Security posture and cgroup boundary audit
 aegis-sandbox audit
 
-# 2. Probe hypervisor network gateway management ports
+# Probe hypervisor network gateway management ports
 aegis-sandbox probe --gateway 192.168.122.1
 
-# 3. Execute safe, self-reaping resource stress tests
+# Execute safe, self-reaping resource stress tests
 aegis-sandbox stress --memory-mb 150 --fork-limit 50
 
-# 4. Generate machine-readable JSON security report
+# Generate machine-readable JSON security report
 aegis-sandbox report --json
 ```
 
@@ -262,31 +335,73 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 
 ```
 ├── .github/
-│   ├── workflows/ci.yml           # Automated unit testing & sudoers syntax validation
+│   ├── workflows/ci.yml           # Automated multi-version CI test matrix (Python 3.10-3.14)
 │   └── ISSUE_TEMPLATE/            # Standardized bug and feature issue templates
 ├── configs/
+│   ├── policies/
+│   │   ├── strict.yaml            # Strict enforcement policy (cgroups, ro-rootfs, proxy, broker)
+│   │   └── permissive.yaml        # Weakened baseline policy for positive control calibration
+│   ├── seccomp/
+│   │   └── strict.json            # OCI BPF seccomp profile blocking ptrace, bpf, mount, reboot
 │   ├── sudoers/
 │   │   └── agentuser.sudoers      # Hardened allowlist/deny-list closing slice-escape vectors
 │   ├── systemd/
 │   │   └── user-1001.slice.d/
-│   │       └── override.conf      # Cgroup v2 limits (MemoryMax=448M, Swap=128M, Tasks=256)
+│   │       └── override.conf      # Cgroup v2 limits (MemoryMax=450M, Swap=128M, Tasks=256)
 │   └── vm/
+│       ├── cloud-init.yaml        # Automated cloud-init provisioning configuration
 │       └── debian-minimal.xml     # Full libvirt/KVM domain XML definition
 ├── docs/
-│   ├── WHITE_PAPER.md             # Formal research paper on agent isolation
+│   ├── plans/                     # Implementation plans & architectural blueprints
+│   ├── WHITE_PAPER.md             # Formal research paper on agent isolation & benchmarks
 │   ├── agent_rules.md             # Standard agent operational contract & safety rules
-│   ├── phase1_sanity_checks.md    # Dedicated baseline environment verification
-│   └── test_results.md            # Master 60 KB empirical test log with verbatim logs
+│   └── test_results.md            # Master empirical test log with verbatim execution traces
 ├── scripts/
+│   ├── generate_docs.py           # Automated markdown sync from benchmark_results.json
+│   ├── provision.sh               # 1-command VM provisioning and system hardening
+│   ├── run_benchmarks.py          # Statistical multi-backend benchmark suite (n>=10)
 │   ├── run_stress_tests.sh        # Automated in-sandbox verification & stress probe
 │   └── setup_vm.sh                # Unattended KVM/QEMU provisioning script
-├── src/aegissandbox/              # Aegis-Sandbox Python CLI & verification library
+├── src/aegissandbox/              # Aegis-Sandbox Python CLI & Enforcement Library
 │   ├── __init__.py
-│   ├── cli.py                     # Interactive CLI interface (audit, probe, stress, report)
+│   ├── audit.py                   # Structured JSONL audit logger (commands, egress, blocks)
+│   ├── backends/                  # Pluggable isolation backends
+│   │   ├── base.py                # Base backend protocol & ExecutionResult dataclass
+│   │   ├── container.py           # Rootless Podman/OCI container backend
+│   │   ├── kvm.py                 # Hardware KVM virtual machine backend over SSH
+│   │   └── namespaces.py          # Linux User Namespaces backend (bwrap)
+│   ├── cli.py                     # Interactive CLI interface (run, scan, audit, probe, stress)
+│   ├── harness.py                 # Adversarial prompt injection agent harness & detection
+│   ├── network/                   # Network security & secrets layer
+│   │   ├── proxy.py               # Asynchronous default-deny HTTP/CONNECT egress proxy
+│   │   └── secrets_broker.py      # Ephemeral scoped surrogate token swapper
+│   ├── policy.py                  # Declarative YAML policy parser & schemas
 │   ├── probes.py                  # Cgroup, file permission, IMDS & gateway probes
+│   ├── runner.py                  # Unified enforcement runner orchestrating backend & proxy
+│   ├── scanner.py                 # Automated GTFOBins binary & sudoers auditor
+│   ├── seccomp.py                 # Seccomp BPF filter loader and capability manager
 │   └── stress.py                  # Safe, self-reaping resource stress routines
 ├── tests/
-│   └── test_cli.py                # Unit test suite for Aegis-Sandbox modules
+│   ├── corpus/                    # Adversarial prompt injection payload corpus
+│   │   ├── malicious_readme.md
+│   │   ├── poisoned_api_response.json
+│   │   └── poisoned_tool_output.txt
+│   ├── test_audit.py              # Audit logging unit tests
+│   ├── test_backends.py           # Pluggable backend interface tests
+│   ├── test_backend_container.py  # Podman container backend tests
+│   ├── test_backend_kvm.py        # Hardware KVM backend tests
+│   ├── test_backend_namespaces.py # Linux namespaces backend tests
+│   ├── test_cli.py                # CLI commands & argument parsing tests
+│   ├── test_controls.py           # Positive & negative control dual-boundary tests
+│   ├── test_harness.py            # Prompt injection harness tests
+│   ├── test_policy.py             # YAML policy schema tests
+│   ├── test_proxy.py              # Egress allowlist proxy tests
+│   ├── test_runner.py             # Active runner integration tests
+│   ├── test_scanner.py            # GTFOBins scanner tests
+│   ├── test_seccomp.py            # Seccomp profile & cap-drop tests
+│   └── test_secrets_broker.py     # Secrets broker & token swapper tests
+├── benchmark_results.json         # Raw statistical benchmark dataset (n=10)
+├── Vagrantfile                    # 1-command Vagrant VM reproduction definition
 ├── CONTRIBUTING.md                # Community contribution guidelines
 ├── LICENSE                        # MIT License
 └── pyproject.toml                 # Modern PEP 517/621 Python package configuration
@@ -303,26 +418,32 @@ cd aiagent-sandbox
 pip install -e .
 ```
 
-### 2. Provision the KVM Sandbox
+### 2. Run the Adversarial Injection Test Harness
+Verify how the sandbox traps prompt injections (token exfiltration, backdoor writes, slice escapes):
 ```bash
-chmod +x scripts/*.sh
-./scripts/setup_vm.sh /path/to/debian-13.7.0-amd64-netinst.iso
+python3 -m unittest tests/test_harness.py
 ```
 
-### 3. Deploy Hardening Configurations
+### 3. Run the Dual-Control Boundary Probes
+Verify positive controls (deliberately weakened boundaries detect breaks) vs negative controls (hardened boundaries contain attacks):
 ```bash
-# Inside the VM (as root or administrator)
-sudo cp configs/systemd/user-1001.slice.d/override.conf /etc/systemd/system/user-1001.slice.d/
-sudo cp configs/sudoers/agentuser.sudoers /etc/sudoers.d/agentuser
-sudo chmod 440 /etc/sudoers.d/agentuser
-sudo systemctl daemon-reload
+python3 -m unittest tests/test_controls.py
 ```
 
-### 4. Verify Boundaries with the CLI
+### 4. Run the Statistical Multi-Backend Benchmark ($n \ge 10$)
+Execute repeated randomized benchmark trials across Namespaces, Containers, and KVM:
 ```bash
-# As agentuser inside the sandbox
-aegis-sandbox audit
-aegis-sandbox probe
+python3 scripts/run_benchmarks.py --runs 10
+python3 scripts/generate_docs.py
+```
+
+### 5. 1-Command Provisioning (Vagrant / Cloud-Init)
+```bash
+# Spin up the Debian sandbox VM with Vagrant
+vagrant up
+
+# Or provision directly on any fresh Linux node
+sudo ./scripts/provision.sh
 ```
 
 ---

@@ -1,0 +1,85 @@
+#cloud-config
+# Aegis-Sandbox Automated Cloud-Init Provisioning Configuration
+# Provisions Debian 13 "Trixie" / Debian 12 minimal VM sandbox
+
+hostname: debian-minimal
+manage_etc_hosts: true
+
+users:
+  - name: agentuser
+    gecos: Autonomous AI Agent Sandbox Account
+    uid: 1001
+    primary_group: agentuser
+    groups: [users]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active *, /usr/bin/systemctl status *, /usr/bin/dmesg, /usr/bin/journalctl, /usr/bin/apt-get update, /usr/bin/apt-get install -y *
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK77gN3uV/6U6lM/k1+8V1gNqWvJp6uGZzC0wHk1j5 Aegis-Sandbox-Agent-Key
+
+package_update: true
+package_upgrade: true
+packages:
+  - python3
+  - python3-pip
+  - bubblewrap
+  - curl
+  - git
+  - libseccomp2
+  - systemd-container
+
+write_files:
+  # 1. Systemd cgroup slice enforcement
+  - path: /etc/systemd/system/user-1001.slice.d/override.conf
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Slice]
+      MemoryAccounting=true
+      MemoryMax=450M
+      MemorySwapMax=128M
+      TasksAccounting=true
+      TasksMax=256
+      CPUAccounting=true
+      CPUQuota=200%
+
+  # 2. Hardened sudoers configuration with explicit negations
+  - path: /etc/sudoers.d/agentuser
+    permissions: '0440'
+    owner: root:root
+    content: |
+      agentuser ALL=(ALL) NOPASSWD: \
+          /usr/bin/systemctl is-active *, \
+          /usr/bin/systemctl status *, \
+          /usr/bin/dmesg, \
+          /usr/bin/journalctl, \
+          /usr/bin/apt-get update, \
+          /usr/bin/apt-get install -y *
+      agentuser ALL=(ALL) !/usr/bin/systemd-run, \
+          !/usr/bin/nsenter, \
+          !/usr/bin/chroot, \
+          !/usr/bin/unshare, \
+          !/usr/bin/bash, \
+          !/usr/bin/sh, \
+          !/usr/bin/su, \
+          !/usr/bin/tee
+
+  # 3. Mount tmpfs on /tmp and /var/tmp for ephemeral isolation
+  - path: /etc/systemd/system/tmp.mount
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Ephemeral tmpfs mount for /tmp
+      [Mount]
+      What=tmpfs
+      Where=/tmp
+      Type=tmpfs
+      Options=mode=1777,strictatime,nosuid,nodev,size=256M
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl restart user-1001.slice
+  - chmod 700 /root
+  - chmod 700 /etc/shadow
