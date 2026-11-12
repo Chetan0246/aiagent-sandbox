@@ -121,6 +121,13 @@ class TestAegisCli(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 0)
         self.assertIn("cli_run_pass", mock_stdout.getvalue())
 
+    @patch("sys.stdout", new_callable=io.StringIO)
+    def test_cli_harness(self, mock_stdout):
+        with patch.object(sys, "argv", ["aegis", "harness", "--backend", "namespaces", "--runs", "1"]):
+            main()
+        self.assertIn("Adversarial Prompt Injection Agent Harness", mock_stdout.getvalue())
+        self.assertIn("Harness Result", mock_stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

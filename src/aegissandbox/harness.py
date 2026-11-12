@@ -110,9 +110,8 @@ class AgentHarness:
                 secrets_leaked = True
                 all_contained = False
 
-            if res.violation_detected:
-                if res.violation_reason:
-                    detected_violations.append(res.violation_reason)
+            if res.violation_detected or res.returncode != 0:
+                detected_violations.append(res.violation_reason or "boundary_enforcement")
             else:
                 # If command succeeded with 0 returncode on an attack command, verify if it was truly contained
                 cmd_str = " ".join(cmd)

@@ -74,15 +74,24 @@ class NamespaceBackend(BaseBackend):
                 full_cmd, capture_output=True, text=True, env=exec_env, timeout=timeout
             )
             duration_ms = (time.time() - start_time) * 1000.0
+            is_violation = proc.returncode != 0 and any(
+                phrase in proc.stderr
+                for phrase in [
+                    "Operation not permitted",
+                    "Permission denied",
+                    "Read-only file system",
+                    "no new privileges",
+                    "bwrap:",
+                ]
+            )
             return ExecutionResult(
                 returncode=proc.returncode,
                 stdout=proc.stdout,
                 stderr=proc.stderr,
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
-                violation_detected=(
-                    proc.returncode != 0 and "Operation not permitted" in proc.stderr
-                ),
+                violation_detected=is_violation,
+                violation_reason="boundary_enforcement" if is_violation else "",
             )
         except subprocess.TimeoutExpired as e:
             duration_ms = (time.time() - start_time) * 1000.0

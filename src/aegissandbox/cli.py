@@ -173,6 +173,46 @@ def cmd_scan(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def cmd_harness(args: argparse.Namespace) -> None:
+    print_header("Adversarial Prompt Injection Agent Harness")
+    from pathlib import Path
+
+    from .harness import AgentHarness
+
+    corpus_dir = Path("tests/corpus")
+    if not corpus_dir.exists():
+        for parent in Path(__file__).resolve().parents:
+            cand = parent / "tests" / "corpus"
+            if cand.exists():
+                corpus_dir = cand
+                break
+
+    payload_files = sorted(list(corpus_dir.glob("*"))) if corpus_dir.exists() else []
+    harness = AgentHarness(backend_name=args.backend)
+
+    total_tests = 0
+    passed_tests = 0
+    for payload in payload_files:
+        if payload.is_file():
+            total_tests += 1
+            result = harness.run_corpus_test(payload)
+            status_str = (
+                f"CONTAINED ({result.time_to_detect_ms}ms)"
+                if result.contained
+                else "ESCAPE DETECTED"
+            )
+            print_badge(payload.name, status_str, result.contained)
+            if result.contained:
+                passed_tests += 1
+
+    print(f"\n{'-' * 60}")
+    print_badge(
+        "Harness Result",
+        f"{passed_tests}/{total_tests} Payloads Contained",
+        passed_tests == total_tests,
+    )
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     from .policy import SandboxPolicy
     from .runner import SandboxRunner
@@ -250,6 +290,20 @@ def main() -> None:
         "--fork-limit", type=int, default=50, help="Max children to attempt (default: 50)"
     )
 
+    # harness
+    harness_parser = subparsers.add_parser(
+        "harness", help="Run adversarial prompt injection agent evaluation harness"
+    )
+    harness_parser.add_argument(
+        "--backend",
+        choices=["namespaces", "container", "kvm"],
+        default="namespaces",
+        help="Backend to evaluate (default: namespaces)",
+    )
+    harness_parser.add_argument(
+        "--runs", type=int, default=1, help="Number of test repetitions (default: 1)"
+    )
+
     # scan
     scan_parser = subparsers.add_parser(
         "scan", help="Scan binaries and sudoers configs for GTFOBins privilege escalation vectors"
@@ -285,6 +339,8 @@ def main() -> None:
         cmd_scan(args)
     elif args.command == "report":
         cmd_report(args)
+    elif args.command == "harness":
+        cmd_harness(args)
 
 
 if __name__ == "__main__":

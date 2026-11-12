@@ -1,0 +1,43 @@
+version: "1.0"
+name: "default-agent-sandbox"
+description: "Default boundary policy for untrusted autonomous AI agent execution"
+
+resources:
+  memory_max: "384M"
+  memory_swap_max: "0"
+  tasks_max: 100
+  cpu_quota: "80%"
+
+security:
+  seccomp_profile: "strict"
+  drop_capabilities:
+    - "CAP_SYS_ADMIN"
+    - "CAP_NET_RAW"
+    - "CAP_SYS_PTRACE"
+    - "CAP_DAC_OVERRIDE"
+  read_only_root: true
+  ephemeral_dirs:
+    - "/tmp"
+    - "/var/tmp"
+
+network:
+  mode: "allowlist-proxy"
+  proxy_port: 8080
+  allowed_domains:
+    - "api.openai.com"
+    - "api.anthropic.com"
+    - "huggingface.co"
+    - "deb.debian.org"
+    - "pypi.org"
+    - "files.pythonhosted.org"
+
+secrets:
+  broker_enabled: true
+  mapped_tokens:
+    OPENAI_API_KEY: "secret:prod-agent-openai-key"
+    ANTHROPIC_API_KEY: "secret:prod-agent-anthropic-key"
+    GITHUB_TOKEN: "secret:prod-agent-gh-token"
+
+audit:
+  enabled: true
+  log_path: "audit.jsonl"
