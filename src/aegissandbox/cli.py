@@ -109,12 +109,48 @@ def cmd_report(args):
         print_header("System Audit Summary (JSON Report Available via --json)")
         print(json.dumps(data, indent=2))
 
+def cmd_run(args):
+    from .policy import SandboxPolicy
+    from .runner import SandboxRunner
+
+    policy = SandboxPolicy.from_yaml(args.policy) if args.policy else SandboxPolicy()
+    runner = SandboxRunner(policy=policy, backend_name=args.backend)
+
+    print_header(f"Active Enforcement Execution :: {args.backend.upper()}")
+    print(f"  {C_BOLD}Policy:{C_RESET}     {policy.name}")
+    print(f"  {C_BOLD}Backend:{C_RESET}    {args.backend}")
+    print(f"  {C_BOLD}Command:{C_RESET}    {' '.join(args.command)}")
+    print(f"{C_CYAN}{'-'*60}{C_RESET}\n")
+
+    res = runner.execute(args.command)
+
+    if res.stdout:
+        print(res.stdout, end="")
+    if res.stderr:
+        print(f"{C_RED}{res.stderr}{C_RESET}", end="", file=sys.stderr)
+
+    print(f"\n{C_CYAN}{'-'*60}{C_RESET}")
+    print_badge("Exit Code", str(res.returncode), res.returncode == 0)
+    print_badge("Duration", f"{res.duration_ms} ms", True)
+    if res.violation_detected:
+        print_badge("Security Boundary", f"VIOLATION TRAPPED: {res.violation_reason}", False)
+    else:
+        print_badge("Security Boundary", "CLEAN / CONTAINED", True)
+
+    sys.exit(res.returncode)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="aegis-sandbox",
         description="Aegis-Sandbox: Autonomous AI Agent Isolation & Security Verification Suite"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # run
+    run_parser = subparsers.add_parser("run", help="Execute an untrusted command inside the enforced sandbox")
+    run_parser.add_argument("--backend", choices=["namespaces", "container", "kvm"], default="namespaces", help="Sandbox isolation backend (default: namespaces)")
+    run_parser.add_argument("--policy", default=None, help="Path to declarative YAML policy file")
+    run_parser.add_argument("command_args", nargs=argparse.REMAINDER, help="Command to execute (e.g. -- python3 agent.py)")
 
     # audit
     subparsers.add_parser("audit", help="Run comprehensive security posture audit")
@@ -135,7 +171,15 @@ def main():
 
     args = parser.parse_args()
     
-    if args.command == "audit":
+    if args.command == "run":
+        if args.command_args and args.command_args[0] == "--":
+            args.command_args = args.command_args[1:]
+        if not args.command_args:
+            print(f"{C_RED}Error: No command specified to run.{C_RESET}")
+            sys.exit(1)
+        args.command = args.command_args
+        cmd_run(args)
+    elif args.command == "audit":
         cmd_audit(args)
     elif args.command == "probe":
         cmd_probe(args)
