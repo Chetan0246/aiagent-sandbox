@@ -163,7 +163,7 @@ Hardware virtualization guarantees that even if an agent acquires total root pri
 ## 8. Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
 
 <!-- BENCHMARK_TABLE_START -->
-### 🔬 Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
+### Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
 
 > **Test Environment**: Fedora Linux 44 (KDE Plasma Desktop Edition) | Kernel `7.2.15-200.fc44.x86_64` | CPU: `AMD Ryzen 7 250 w/ Radeon 780M Graphics` (16 vCPUs) | Host RAM: `14610.0 MB` | Benchmark Date: `2026-11-12T17:34:39Z`
 

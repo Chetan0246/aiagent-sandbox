@@ -27,7 +27,7 @@ def format_benchmark_markdown(data: Dict[str, Any]) -> str:
 
     lines = [
         START_TAG,
-        f"### 🔬 Empirical Multi-Backend Performance & Boundary Matrix ($n = {n}$)",
+        f"### Empirical Multi-Backend Performance & Boundary Matrix ($n = {n}$)",
         "",
         f"> **Test Environment**: {meta.get('host_os', 'Linux')} | Kernel `{meta.get('kernel', 'unknown')}` | CPU: `{meta.get('cpu_model', 'unknown')}` ({meta.get('cpu_cores', 1)} vCPUs) | Host RAM: `{meta.get('ram_total_mb', 0)} MB` | Benchmark Date: `{meta.get('timestamp', 'latest')}`",
         "",
@@ -78,11 +78,12 @@ def update_target_file(file_path: Path, new_table_md: str) -> bool:
         content = f.read()
 
     pattern = re.compile(rf"{re.escape(START_TAG)}[\s\S]*?{re.escape(END_TAG)}")
-    if pattern.search(content):
-        updated_content = pattern.sub(new_table_md, content)
+    match = pattern.search(content)
+    if match:
+        updated_content = content[:match.start()] + new_table_md + content[match.end():]
     else:
         # If tags not found, insert after the Architectural Isolation Matrix section
-        insert_marker = "## 📊 Architectural Isolation Matrix: Containers vs. VMs"
+        insert_marker = "## Architectural Isolation Matrix: Containers vs. VMs"
         if insert_marker in content:
             updated_content = content.replace(
                 insert_marker,

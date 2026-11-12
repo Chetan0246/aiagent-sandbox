@@ -5,7 +5,7 @@
 set -euo pipefail
 
 echo "============================================================"
-echo "🛡️  Aegis-Sandbox :: Automated Environment Provisioning"
+echo "Aegis :: Automated Environment Provisioning"
 echo "============================================================"
 
 # 1. Install dependencies
@@ -72,5 +72,5 @@ chmod 700 /root
 chmod 700 /etc/shadow || true
 
 echo "============================================================"
-echo "✔ Provisioning complete. Sandbox boundaries enforced."
+echo "[OK] Provisioning complete. Sandbox boundaries enforced."
 echo "============================================================"

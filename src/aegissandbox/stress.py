@@ -1,20 +1,20 @@
 """Controlled stress and resource exhaustion probes for AI sandboxes."""
 
-import os
-import sys
-import time
 import math
 import multiprocessing
-from typing import Dict, Any
+import os
+import time
+from typing import Any
 
-def run_fork_probe(max_procs: int = 100) -> Dict[str, Any]:
+
+def run_fork_probe(max_procs: int = 100) -> dict[str, Any]:
     """Tests fork limit without permanently exhausting system process table."""
     spawned = []
     failed = False
     error_msg = ""
-    
+
     try:
-        for i in range(max_procs):
+        for _i in range(max_procs):
             pid = os.fork()
             if pid == 0:
                 # Child sleeps briefly then exits
@@ -36,15 +36,16 @@ def run_fork_probe(max_procs: int = 100) -> Dict[str, Any]:
                 os.waitpid(pid, 0)
             except Exception:
                 pass
-                
+
     return {
         "attempted": max_procs,
         "successfully_spawned": len(spawned),
         "hit_ceiling": failed,
-        "error": error_msg
+        "error": error_msg,
     }
 
-def run_memory_probe(target_mb: int = 200, hold_seconds: float = 1.0) -> Dict[str, Any]:
+
+def run_memory_probe(target_mb: int = 200, hold_seconds: float = 1.0) -> dict[str, Any]:
     """Tests memory allocation within safe thresholds."""
     start_time = time.time()
     try:
@@ -63,33 +64,35 @@ def run_memory_probe(target_mb: int = 200, hold_seconds: float = 1.0) -> Dict[st
     except Exception as e:
         success = False
         error = str(e)
-        
+
     duration = time.time() - start_time
     return {
         "target_mb": target_mb,
         "success": success,
         "duration_seconds": round(duration, 3),
-        "error": error
+        "error": error,
     }
 
-def _worker_cpu(duration: float):
+
+def _worker_cpu(duration: float) -> bool:
     start = time.time()
     v = 0.0
     while time.time() - start < duration:
         v += math.sqrt(999999.0)
     return True
 
-def run_concurrency_stress(workers: int = 3, duration: float = 2.0) -> Dict[str, Any]:
+
+def run_concurrency_stress(workers: int = 3, duration: float = 2.0) -> dict[str, Any]:
     """Simulates concurrent multi-worker load."""
     start_time = time.time()
     with multiprocessing.Pool(processes=workers) as pool:
         results = [pool.apply_async(_worker_cpu, (duration,)) for _ in range(workers)]
         success = all([r.get(timeout=duration + 5.0) for r in results])
-        
+
     total_time = round(time.time() - start_time, 2)
     return {
         "workers": workers,
         "duration_per_worker": duration,
         "completed": success,
-        "total_elapsed_seconds": total_time
+        "total_elapsed_seconds": total_time,
     }

@@ -4,26 +4,27 @@ Simulates autonomous LLM agent execution under prompt injection attacks.
 """
 
 from __future__ import annotations
+
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+
+from .backends.base import ExecutionResult
 from .policy import SandboxPolicy
 from .runner import SandboxRunner
-from .backends.base import ExecutionResult
 
 
 @dataclass
 class AgentHarnessResult:
     corpus_file: str
     injected_instructions_found: int
-    commands_attempted: List[List[str]]
+    commands_attempted: list[list[str]]
     contained: bool
-    violations_detected: List[str]
+    violations_detected: list[str]
     secrets_exfiltrated: bool
     time_to_detect_ms: float
-    execution_results: List[ExecutionResult] = field(default_factory=list)
+    execution_results: list[ExecutionResult] = field(default_factory=list)
 
 
 class AgentHarness:
@@ -31,9 +32,9 @@ class AgentHarness:
 
     def __init__(
         self,
-        runner: Optional[SandboxRunner] = None,
-        policy: Optional[SandboxPolicy] = None,
-        backend_name: str = "namespaces"
+        runner: SandboxRunner | None = None,
+        policy: SandboxPolicy | None = None,
+        backend_name: str = "namespaces",
     ):
         if runner:
             self.runner = runner
@@ -41,9 +42,9 @@ class AgentHarness:
             p = policy if policy else SandboxPolicy()
             self.runner = SandboxRunner(policy=p, backend_name=backend_name)
 
-    def extract_injected_commands(self, text: str) -> List[List[str]]:
+    def extract_injected_commands(self, text: str) -> list[list[str]]:
         """Extracts bash/shell commands injected into text payloads."""
-        commands: List[List[str]] = []
+        commands: list[list[str]] = []
 
         # 1. Regex for curl / exfiltration commands
         curl_matches = re.findall(r"(curl\s+-[^\n\r]+)", text)
@@ -79,16 +80,16 @@ class AgentHarness:
     def run_corpus_test(
         self,
         corpus_path: str | Path,
-        real_secret_canary: str = "sk-live-super-secret-production-key-998877"
+        real_secret_canary: str = "sk-live-super-secret-production-key-998877",
     ) -> AgentHarnessResult:
         """Executes adversarial payload through the sandbox and measures containment."""
         path = Path(corpus_path)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
 
         commands = self.extract_injected_commands(content)
-        detected_violations: List[str] = []
-        exec_results: List[ExecutionResult] = []
+        detected_violations: list[str] = []
+        exec_results: list[ExecutionResult] = []
         all_contained = True
         secrets_leaked = False
 
@@ -100,7 +101,7 @@ class AgentHarness:
         }
 
         for cmd in commands:
-            cmd_start = time.perf_counter()
+            time.perf_counter()
             res = self.runner.execute(cmd, env=env)
             exec_results.append(res)
 

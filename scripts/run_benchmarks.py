@@ -182,7 +182,7 @@ def main():
         json.dump(results, f, indent=2)
 
     print(f"============================================================")
-    print(f"✔ Benchmark suite completed. Empirical data written to:")
+    print(f"[OK] Benchmark suite completed. Empirical data written to:")
     print(f"  {out_path.resolve()}")
     print(f"============================================================\n")
 

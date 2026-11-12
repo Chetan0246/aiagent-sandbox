@@ -1,7 +1,7 @@
 <div align="center">
 
-# 🛡️ Aegis-Sandbox
-### *Empirical Isolation, Boundary Enforcement & Stress Testing Suite for Autonomous AI Agents*
+# Aegis
+### *Autonomous AI Agent Isolation, Boundary Enforcement, and Empirical Security Suite*
 
 [![CI](https://github.com/Chetan0246/aiagent-sandbox/actions/workflows/ci.yml/badge.svg)](https://github.com/Chetan0246/aiagent-sandbox/actions/workflows/ci.yml)
 [![Debian](https://img.shields.io/badge/Debian-13.7_Trixie-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
@@ -11,35 +11,35 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[**Read the Research Whitepaper**](docs/WHITE_PAPER.md) • [**View Master Empirical Log**](docs/test_results.md) • [**Explore Hardening Blueprints**](configs/)
+[**Research Whitepaper**](docs/WHITE_PAPER.md) • [**Threat Model**](docs/THREAT_MODEL.md) • [**System Limitations**](docs/LIMITATIONS.md) • [**Empirical Test Log**](docs/test_results.md) • [**Hardening Blueprints**](configs/)
 
 </div>
 
 ---
 
-## 📌 Table of Contents
-- [Executive Summary](#-executive-summary)
-- [Why AI Agents Break Traditional Sandboxes](#-why-ai-agents-break-traditional-sandboxes)
-- [Architectural Isolation Matrix: Containers vs. VMs](#-architectural-isolation-matrix-containers-vs-vms)
-- [Sandbox Architecture & Supervisory Control](#-sandbox-architecture--supervisory-control)
-- [Aegis-Sandbox CLI Showcase](#-aegis-sandbox-cli-showcase)
-- [Empirical Findings & Vulnerability Deep Dives](#-empirical-findings--vulnerability-deep-dives)
+## Table of Contents
+- [Executive Summary](#executive-summary)
+- [Why AI Agents Break Traditional Sandboxes](#why-ai-agents-break-traditional-sandboxes)
+- [Architectural Isolation Matrix: Containers vs. VMs](#architectural-isolation-matrix-containers-vs-vms)
+- [Empirical Multi-Backend Benchmark ($n = 10$)](#empirical-multi-backend-performance--boundary-matrix-n--10)
+- [CLI and Enforcement Showcase](#cli-and-enforcement-showcase)
+- [Empirical Findings and Vulnerability Analysis](#empirical-findings-and-vulnerability-analysis)
   - [1. The Sudoers Slice-Bypass Trap](#1-the-sudoers-slice-bypass-trap)
   - [2. Default TasksMax Thread Starvation](#2-default-tasksmax-thread-starvation)
   - [3. Swap as a Deceptive OOM Buffer](#3-swap-as-a-deceptive-oom-buffer)
   - [4. Out-of-Band Supervisor Recovery (< 50ms)](#4-out-of-band-supervisor-recovery--50ms)
-- [Comprehensive Empirical Test Matrix](#-comprehensive-empirical-test-matrix)
-- [The 4-Pillar Production Hardening Framework](#-the-4-pillar-production-hardening-framework)
-- [Repository Layout](#-repository-layout)
-- [Quickstart & Reproduction Guide](#-quickstart--reproduction-guide)
+- [Comprehensive Empirical Test Matrix](#comprehensive-empirical-test-matrix)
+- [The Four-Pillar Hardening Framework](#the-four-pillar-hardening-framework)
+- [Repository Layout](#repository-layout)
+- [Quickstart and Reproduction Guide](#quickstart-and-reproduction-guide)
 
 ---
 
-## 🔬 Executive Summary
+## Executive Summary
 
 Autonomous AI agents (e.g., Devin, OpenHands, AutoGPT, Claude Code) represent a paradigm shift in execution security: unlike traditional deterministic software, **agents execute arbitrary bash commands, install system dependencies, self-debug execution failures, and run concurrent sub-agents**. When exposed to untrusted external input (web pages, repositories, APIs), they become vulnerable to **indirect prompt injection**.
 
-**Aegis-Sandbox** is an empirical research suite, hardening blueprint, and automated verification CLI evaluating isolation boundaries, resource exhaustion thresholds, living-off-the-land privilege escalation, and out-of-band recovery under real hardware virtualization (Debian 13 minimal guest under KVM/QEMU).
+**Aegis** is an empirical research suite, hardening blueprint, and automated verification engine evaluating isolation boundaries, resource exhaustion thresholds, living-off-the-land privilege escalation, and out-of-band recovery under real hardware virtualization (Debian 13 minimal guest under KVM/QEMU) and software container runtimes.
 
 ```
                       ┌────────────────────────────────────────────────────────┐
@@ -70,7 +70,7 @@ Autonomous AI agents (e.g., Devin, OpenHands, AutoGPT, Claude Code) represent a 
 
 ---
 
-## ⚠️ Why AI Agents Break Traditional Sandboxes
+## Why AI Agents Break Traditional Sandboxes
 
 Most developer sandbox architectures rely on **shared-kernel containers (Docker/Podman)**. For autonomous LLM agents, containers introduce fatal vulnerabilities:
 
@@ -80,10 +80,10 @@ Most developer sandbox architectures rely on **shared-kernel containers (Docker/
 
 ---
 
-## 📊 Architectural Isolation Matrix: Containers vs. VMs
+## Architectural Isolation Matrix: Containers vs. VMs
 
 <!-- BENCHMARK_TABLE_START -->
-### 🔬 Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
+### Empirical Multi-Backend Performance & Boundary Matrix ($n = 10$)
 
 > **Test Environment**: Fedora Linux 44 (KDE Plasma Desktop Edition) | Kernel `7.2.15-200.fc44.x86_64` | CPU: `AMD Ryzen 7 250 w/ Radeon 780M Graphics` (16 vCPUs) | Host RAM: `14610.0 MB` | Benchmark Date: `2026-11-12T17:34:39Z`
 
@@ -108,27 +108,27 @@ Most developer sandbox architectures rely on **shared-kernel containers (Docker/
 
 ---
 
-## 🛠️ Aegis-Sandbox CLI & Enforcement Showcase
+## CLI and Enforcement Showcase
 
-Aegis-Sandbox is both an **active execution containment engine** and a **security verification suite**.
+Aegis is both an **active execution containment engine** and a **security verification suite**.
 
-### 1. Active Enforcement Execution (`aegis-sandbox run`)
+### 1. Active Enforcement Execution (`aegis run`)
 Run untrusted agent commands inside declarative isolation boundaries across 3 backends:
 
 ```bash
 # Execute inside unprivileged Linux User Namespaces (bwrap) with read-only rootfs
-aegis-sandbox run --backend namespaces --policy configs/policies/strict.yaml -- python3 -c "print('hello from sandbox')"
+aegis run --backend namespaces --policy configs/policies/strict.yaml -- python3 -c "print('hello from sandbox')"
 
 # Execute inside Rootless Podman container with dropped capabilities and seccomp BPF filter
-aegis-sandbox run --backend container --policy configs/policies/strict.yaml -- uname -a
+aegis run --backend container --policy configs/policies/strict.yaml -- uname -a
 
 # Execute inside Hardware KVM Virtual Machine over SSH with systemd user-slice enforcement
-aegis-sandbox run --backend kvm --policy configs/policies/strict.yaml -- uptime
+aegis run --backend kvm --policy configs/policies/strict.yaml -- uptime
 ```
 
 ```
 ============================================================
-🛡️  Aegis-Sandbox :: Active Enforcement Execution :: NAMESPACES
+Aegis :: Active Enforcement Execution :: NAMESPACES
 ============================================================
   Policy:     strict-agent-sandbox
   Backend:    namespaces
@@ -137,25 +137,25 @@ aegis-sandbox run --backend kvm --policy configs/policies/strict.yaml -- uptime
 hello from sandbox
 
 ------------------------------------------------------------
-  [✔] Exit Code                    -> 0
-  [✔] Duration                     -> 7.12 ms
-  [✔] Security Boundary            -> CLEAN / CONTAINED
+  [ OK ] Exit Code                    -> 0
+  [ OK ] Duration                     -> 7.12 ms
+  [ OK ] Security Boundary            -> CLEAN / CONTAINED
 ```
 
-### 2. Automated GTFOBins Privilege Escalation Scanner (`aegis-sandbox scan`)
+### 2. Automated GTFOBins Privilege Escalation Scanner (`aegis scan`)
 Audit sudoers configurations or binary paths for privilege escalation vectors, shell escapes, or arbitrary file overwrites:
 
 ```bash
 # Audit sudoers configuration
-aegis-sandbox scan --sudoers configs/sudoers/agentuser.sudoers
+aegis scan --sudoers configs/sudoers/agentuser.sudoers
 
 # Audit specific binaries or allowed PATH manifests
-aegis-sandbox scan --binaries "systemd-run,find,grep,cat"
+aegis scan --binaries "systemd-run,find,grep,cat"
 ```
 
 ```
 ============================================================
-🛡️  Aegis-Sandbox :: GTFOBins Binary Privilege Escalation Audit
+Aegis :: GTFOBins Binary Privilege Escalation Audit
 ============================================================
   Target Sudoers: configs/sudoers/agentuser.sudoers
 
@@ -166,53 +166,53 @@ aegis-sandbox scan --binaries "systemd-run,find,grep,cat"
   [MITIGATED] tee            Risk: HIGH     Vectors: file_write, sudo
          ↳ Mitigation: Explicitly denied in sudoers configuration (!)
 ------------------------------------------------------------
-  [✔] Total Binaries Scanned       -> 14
-  [✔] Critical Vulnerabilities     -> 0
-  [✔] High Risk Vectors            -> 0
-  [✔] GTFOBins Audit Result        -> PASSED
+  [ OK ] Total Binaries Scanned       -> 14
+  [ OK ] Critical Vulnerabilities     -> 0
+  [ OK ] High Risk Vectors            -> 0
+  [ OK ] GTFOBins Audit Result        -> PASSED
 ```
 
 ### 3. Auditing, Probing, and Stress Testing
 ```bash
 # Security posture and cgroup boundary audit
-aegis-sandbox audit
+aegis audit
 
 # Probe hypervisor network gateway management ports
-aegis-sandbox probe --gateway 192.168.122.1
+aegis probe --gateway 192.168.122.1
 
 # Execute safe, self-reaping resource stress tests
-aegis-sandbox stress --memory-mb 150 --fork-limit 50
+aegis stress --memory-mb 150 --fork-limit 50
 
 # Generate machine-readable JSON security report
-aegis-sandbox report --json
+aegis report --json
 ```
 
 ```
 ============================================================
-🛡️  Aegis-Sandbox :: Security Posture & Isolation Audit
+Aegis :: Security Posture & Isolation Audit
 ============================================================
 
 [1] Cgroup v2 Resource Ceilings:
-  [✔] memory.max                   -> 469762048 (HARD LIMIT)
-  [✔] memory.swap.max              -> 134217728 (HARD LIMIT)
-  [✔] pids.max                     -> 256 (HARD LIMIT)
+  [ OK ] memory.max                   -> 469762048 (HARD LIMIT)
+  [ OK ] memory.swap.max              -> 134217728 (HARD LIMIT)
+  [ OK ] pids.max                     -> 256 (HARD LIMIT)
 
 [2] Sensitive Filesystem DAC Boundaries:
-  [✔] /etc/shadow                  -> BOUNDARY_HELD
-  [✔] /root                        -> BOUNDARY_HELD
-  [✔] /proc/1/environ              -> BOUNDARY_HELD
+  [ OK ] /etc/shadow                  -> BOUNDARY_HELD
+  [ OK ] /root                        -> BOUNDARY_HELD
+  [ OK ] /proc/1/environ              -> BOUNDARY_HELD
 
 [3] Storage Decoupling & Ephemerality:
-  [✔] /tmp isolated (tmpfs)        -> tmpfs
-  [✔] /var/tmp isolated (tmpfs)    -> tmpfs
+  [ OK ] /tmp isolated (tmpfs)        -> tmpfs
+  [ OK ] /var/tmp isolated (tmpfs)    -> tmpfs
 
 [4] Cloud Metadata Service (IMDS) Probe:
-  [✔] 169.254.169.254:80           -> BOUNDARY_HELD
+  [ OK ] 169.254.169.254:80           -> BOUNDARY_HELD
 ```
 
 ---
 
-## 🔍 Empirical Findings & Vulnerability Deep Dives
+## Empirical Findings and Vulnerability Analysis
 
 ### 1. The Sudoers Slice-Bypass Trap
 ```bash
@@ -241,7 +241,7 @@ sudo systemctl stop user-1001.slice
 
 ---
 
-## 📈 Comprehensive Empirical Test Matrix
+## Comprehensive Empirical Test Matrix
 
 All 16 test suites were executed sequentially under a strict non-destructive protocol. Detailed logs with exact exit codes and kernel dmesg outputs are preserved in [docs/test_results.md](docs/test_results.md).
 
@@ -269,7 +269,7 @@ All 16 test suites were executed sequentially under a strict non-destructive pro
 
 ---
 
-## 🏛️ The 4-Pillar Production Hardening Framework
+## The Four-Pillar Hardening Framework
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -331,11 +331,13 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 
 ---
 
-## 📂 Repository Layout
+## Repository Layout
 
 ```
 ├── .github/
-│   ├── workflows/ci.yml           # Automated multi-version CI test matrix (Python 3.10-3.14)
+│   ├── workflows/
+│   │   ├── ci.yml                 # Automated multi-version CI test matrix (Python 3.10-3.12)
+│   │   └── publish.yml            # Automated PyPI release workflow on version tags
 │   └── ISSUE_TEMPLATE/            # Standardized bug and feature issue templates
 ├── configs/
 │   ├── policies/
@@ -353,8 +355,11 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 │       └── debian-minimal.xml     # Full libvirt/KVM domain XML definition
 ├── docs/
 │   ├── plans/                     # Implementation plans & architectural blueprints
+│   ├── LIMITATIONS.md             # Honest architectural trade-offs & boundary limits
+│   ├── THREAT_MODEL.md            # Assets, attackers, trust boundaries & non-goals
 │   ├── WHITE_PAPER.md             # Formal research paper on agent isolation & benchmarks
 │   ├── agent_rules.md             # Standard agent operational contract & safety rules
+│   ├── phase1_sanity_checks.md    # Dedicated baseline environment verification
 │   └── test_results.md            # Master empirical test log with verbatim execution traces
 ├── scripts/
 │   ├── generate_docs.py           # Automated markdown sync from benchmark_results.json
@@ -362,7 +367,8 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 │   ├── run_benchmarks.py          # Statistical multi-backend benchmark suite (n>=10)
 │   ├── run_stress_tests.sh        # Automated in-sandbox verification & stress probe
 │   └── setup_vm.sh                # Unattended KVM/QEMU provisioning script
-├── src/aegissandbox/              # Aegis-Sandbox Python CLI & Enforcement Library
+├── src/aegissandbox/              # Aegis Python CLI & Enforcement Library
+│   ├── py.typed                   # PEP 561 typed package marker
 │   ├── __init__.py
 │   ├── audit.py                   # Structured JSONL audit logger (commands, egress, blocks)
 │   ├── backends/                  # Pluggable isolation backends
@@ -399,7 +405,8 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 │   ├── test_runner.py             # Active runner integration tests
 │   ├── test_scanner.py            # GTFOBins scanner tests
 │   ├── test_seccomp.py            # Seccomp profile & cap-drop tests
-│   └── test_secrets_broker.py     # Secrets broker & token swapper tests
+│   ├── test_secrets_broker.py     # Secrets broker & token swapper tests
+│   └── test_stress.py             # Controlled resource exhaustion & cgroup stress tests
 ├── benchmark_results.json         # Raw statistical benchmark dataset (n=10)
 ├── Vagrantfile                    # 1-command Vagrant VM reproduction definition
 ├── CONTRIBUTING.md                # Community contribution guidelines
@@ -409,9 +416,9 @@ tmpfs   /var/tmp   tmpfs   defaults,noatime,nosuid,nodev,size=256M   0   0
 
 ---
 
-## 🚀 Quickstart & Reproduction Guide
+## Quickstart and Reproduction Guide
 
-### 1. Install Aegis-Sandbox Locally
+### 1. Install Aegis Locally
 ```bash
 git clone https://github.com/Chetan0246/aiagent-sandbox.git
 cd aiagent-sandbox
@@ -421,13 +428,13 @@ pip install -e .
 ### 2. Run the Adversarial Injection Test Harness
 Verify how the sandbox traps prompt injections (token exfiltration, backdoor writes, slice escapes):
 ```bash
-python3 -m unittest tests/test_harness.py
+pytest tests/test_harness.py
 ```
 
 ### 3. Run the Dual-Control Boundary Probes
 Verify positive controls (deliberately weakened boundaries detect breaks) vs negative controls (hardened boundaries contain attacks):
 ```bash
-python3 -m unittest tests/test_controls.py
+pytest tests/test_controls.py
 ```
 
 ### 4. Run the Statistical Multi-Backend Benchmark ($n \ge 10$)
@@ -448,5 +455,5 @@ sudo ./scripts/provision.sh
 
 ---
 
-## 📄 License
+## License
 This repository is open-source and licensed under the [MIT License](LICENSE).

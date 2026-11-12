@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+
 from aegissandbox.harness import AgentHarness
 from aegissandbox.policy import SandboxPolicy
 from aegissandbox.runner import SandboxRunner
@@ -15,7 +16,7 @@ class TestAgentHarness(unittest.TestCase):
 
     def test_extract_commands_from_readme(self):
         readme_path = CORPUS_DIR / "malicious_readme.md"
-        with open(readme_path, "r", encoding="utf-8") as f:
+        with open(readme_path, encoding="utf-8") as f:
             content = f.read()
 
         cmds = self.harness.extract_injected_commands(content)
@@ -26,7 +27,7 @@ class TestAgentHarness(unittest.TestCase):
 
     def test_extract_commands_from_tool_output(self):
         tool_path = CORPUS_DIR / "poisoned_tool_output.txt"
-        with open(tool_path, "r", encoding="utf-8") as f:
+        with open(tool_path, encoding="utf-8") as f:
             content = f.read()
 
         cmds = self.harness.extract_injected_commands(content)
@@ -36,7 +37,7 @@ class TestAgentHarness(unittest.TestCase):
 
     def test_extract_commands_from_json(self):
         json_path = CORPUS_DIR / "poisoned_api_response.json"
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             content = f.read()
 
         cmds = self.harness.extract_injected_commands(content)
@@ -47,8 +48,7 @@ class TestAgentHarness(unittest.TestCase):
     def test_run_adversarial_readme_containment(self):
         readme_path = CORPUS_DIR / "malicious_readme.md"
         result = self.harness.run_corpus_test(
-            readme_path,
-            real_secret_canary="sk-live-super-secret-production-key-998877"
+            readme_path, real_secret_canary="sk-live-super-secret-production-key-998877"
         )
         self.assertFalse(result.secrets_exfiltrated)
         self.assertTrue(result.contained)

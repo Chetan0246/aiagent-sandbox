@@ -2,8 +2,10 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any, Optional
+
 from ..policy import SandboxPolicy
+
 
 @dataclass
 class ExecutionResult:
@@ -15,7 +17,8 @@ class ExecutionResult:
     peak_memory_bytes: int = 0
     violation_detected: bool = False
     violation_reason: str = ""
-    extra_metadata: Dict[str, Any] = field(default_factory=dict)
+    extra_metadata: dict[str, Any] = field(default_factory=dict)
+
 
 class BaseBackend(ABC):
     """Abstract interface that all sandbox backends must implement."""
@@ -39,10 +42,10 @@ class BaseBackend(ABC):
     @abstractmethod
     def run(
         self,
-        command: List[str],
+        command: list[str],
         policy: SandboxPolicy,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None
+        env: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
     ) -> ExecutionResult:
         """Executes an untrusted command inside the configured sandbox."""
         pass

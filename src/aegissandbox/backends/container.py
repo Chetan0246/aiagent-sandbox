@@ -1,13 +1,14 @@
 """Rootless Podman/OCI Container Sandbox Backend."""
 
-import os
 import shutil
-import time
 import subprocess
-from typing import List, Dict, Optional
-from .base import BaseBackend, ExecutionResult
+import time
+from typing import Optional
+
 from ..policy import SandboxPolicy
-from ..seccomp import get_podman_seccomp_args, DEFAULT_SECCOMP_PATH
+from ..seccomp import get_podman_seccomp_args
+from .base import BaseBackend, ExecutionResult
+
 
 class ContainerBackend(BaseBackend):
     """Executes untrusted processes inside rootless Podman/OCI containers."""
@@ -27,10 +28,10 @@ class ContainerBackend(BaseBackend):
 
     def run(
         self,
-        command: List[str],
+        command: list[str],
         policy: SandboxPolicy,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None
+        env: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
     ) -> ExecutionResult:
         if not self.is_available():
             return ExecutionResult(
@@ -40,7 +41,7 @@ class ContainerBackend(BaseBackend):
                 duration_ms=0.0,
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="missing_dependency"
+                violation_reason="missing_dependency",
             )
 
         cmd = ["podman", "run", "--rm"]
@@ -80,12 +81,7 @@ class ContainerBackend(BaseBackend):
 
         start_time = time.time()
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             duration_ms = (time.time() - start_time) * 1000.0
             return ExecutionResult(
                 returncode=proc.returncode,
@@ -93,18 +89,22 @@ class ContainerBackend(BaseBackend):
                 stderr=proc.stderr,
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
-                violation_detected=(proc.returncode != 0 and "Operation not permitted" in proc.stderr)
+                violation_detected=(
+                    proc.returncode != 0 and "Operation not permitted" in proc.stderr
+                ),
             )
         except subprocess.TimeoutExpired as e:
             duration_ms = (time.time() - start_time) * 1000.0
+            out_str = e.stdout.decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+            err_str = e.stderr.decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or "Container command timed out")
             return ExecutionResult(
                 returncode=124,
-                stdout=e.stdout or "",
-                stderr="Container command timed out",
+                stdout=out_str,
+                stderr=err_str,
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="timeout"
+                violation_reason="timeout",
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000.0
@@ -115,7 +115,7 @@ class ContainerBackend(BaseBackend):
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="execution_error"
+                violation_reason="execution_error",
             )
 
     def teardown(self) -> None:

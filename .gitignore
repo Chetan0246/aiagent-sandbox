@@ -22,6 +22,14 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Test & coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Virtual environments
 venv/
 env/

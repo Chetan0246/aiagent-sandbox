@@ -1,29 +1,28 @@
 """Enforcement Sandbox Runner orchestrating Backends, Egress Proxy, Secrets Broker, and Audit Logging."""
 
-import os
 import time
-from typing import List, Dict, Optional
-from .policy import SandboxPolicy
+from typing import Optional
+
+from .audit import AuditLogger
 from .backends.base import BaseBackend, ExecutionResult
-from .backends.namespaces import NamespaceBackend
 from .backends.container import ContainerBackend
 from .backends.kvm import KvmBackend
+from .backends.namespaces import NamespaceBackend
 from .network.proxy import EgressProxyServer
 from .network.secrets_broker import SecretsBroker
-from .audit import AuditLogger
+from .policy import SandboxPolicy
+
 
 class SandboxRunner:
     """Executes untrusted agent processes inside a strictly enforced boundary."""
 
-    def __init__(
-        self,
-        policy: Optional[SandboxPolicy] = None,
-        backend_name: str = "namespaces"
-    ):
+    def __init__(self, policy: Optional[SandboxPolicy] = None, backend_name: str = "namespaces"):
         self.policy = policy or SandboxPolicy()
         self.backend_name = backend_name
         self.backend: BaseBackend = self._init_backend(backend_name)
-        self.audit_logger = AuditLogger(self.policy.audit.log_path) if self.policy.audit.enabled else None
+        self.audit_logger = (
+            AuditLogger(self.policy.audit.log_path) if self.policy.audit.enabled else None
+        )
         self.secrets_broker = SecretsBroker() if self.policy.secrets.broker_enabled else None
         self.proxy: Optional[EgressProxyServer] = None
 
@@ -35,16 +34,18 @@ class SandboxRunner:
         elif name == "kvm":
             return KvmBackend()
         else:
-            raise ValueError(f"Unknown sandbox backend: {name}. Choose from 'namespaces', 'container', 'kvm'.")
+            raise ValueError(
+                f"Unknown sandbox backend: {name}. Choose from 'namespaces', 'container', 'kvm'."
+            )
 
     def execute(
         self,
-        command: List[str],
+        command: list[str],
         timeout: Optional[float] = None,
-        env: Optional[Dict[str, str]] = None
+        env: Optional[dict[str, str]] = None,
     ) -> ExecutionResult:
         """Executes a command with all isolation layers, network proxy, and secrets brokering active."""
-        exec_env: Dict[str, str] = {}
+        exec_env: dict[str, str] = {}
         if env:
             exec_env.update(env)
 
@@ -54,21 +55,22 @@ class SandboxRunner:
                 self.secrets_broker.register_secret(
                     env_var=env_var,
                     real_secret=real_val,
-                    allowed_domains=self.policy.network.allowed_domains
+                    allowed_domains=self.policy.network.allowed_domains,
                 )
             exec_env.update(self.secrets_broker.get_agent_environment())
 
         # 2. Setup Egress Allowlist Proxy
         proxy_port = self.policy.network.proxy_port or 8080
         if self.policy.network.mode == "allowlist-proxy":
-            def audit_cb(host, port, verdict, method):
+
+            def audit_cb(host: str, port: int, verdict: str, method: str) -> None:
                 if self.audit_logger:
                     self.audit_logger.log_egress(host, port, verdict, method)
 
             self.proxy = EgressProxyServer(
                 port=proxy_port,
                 allowed_domains=self.policy.network.allowed_domains,
-                audit_callback=audit_cb
+                audit_callback=audit_cb,
             )
             self.proxy.start()
             proxy_url = f"http://127.0.0.1:{proxy_port}"
@@ -96,7 +98,7 @@ class SandboxRunner:
                 returncode=res.returncode,
                 duration_ms=res.duration_ms,
                 backend=self.backend_name,
-                violation=res.violation_detected
+                violation=res.violation_detected,
             )
 
         return res

@@ -1,9 +1,12 @@
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
+
 from aegissandbox.scanner import GTFOBinsScanner
 
-SUDOERS_CONFIG_PATH = Path(__file__).resolve().parent.parent / "configs" / "sudoers" / "agentuser.sudoers"
+SUDOERS_CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent / "configs" / "sudoers" / "agentuser.sudoers"
+)
 
 
 class TestGTFOBinsScanner(unittest.TestCase):
@@ -29,8 +32,19 @@ class TestGTFOBinsScanner(unittest.TestCase):
         self.assertTrue(report.total_scanned > 0)
         # In agentuser.sudoers, dangerous binaries like systemd-run, nsenter, chroot, unshare are explicitly negated
         for finding in report.findings:
-            if finding.binary in ["systemd-run", "nsenter", "unshare", "chroot", "bash", "sh", "su", "tee"]:
-                self.assertTrue(finding.mitigated, f"{finding.binary} should be mitigated by negation")
+            if finding.binary in [
+                "systemd-run",
+                "nsenter",
+                "unshare",
+                "chroot",
+                "bash",
+                "sh",
+                "su",
+                "tee",
+            ]:
+                self.assertTrue(
+                    finding.mitigated, f"{finding.binary} should be mitigated by negation"
+                )
 
     def test_vulnerable_sudoers_detected(self):
         with tempfile.NamedTemporaryFile("w+", delete=False) as f:

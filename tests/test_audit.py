@@ -1,11 +1,12 @@
-import unittest
 import json
 import tempfile
+import unittest
 from pathlib import Path
+
 from aegissandbox.audit import AuditLogger
 
-class TestAuditLogger(unittest.TestCase):
 
+class TestAuditLogger(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.log_path = Path(self.temp_dir.name) / "audit.jsonl"
@@ -17,10 +18,10 @@ class TestAuditLogger(unittest.TestCase):
     def test_log_command_event(self):
         self.logger.log_command("echo test", returncode=0, duration_ms=12.5, backend="namespaces")
         self.assertTrue(self.log_path.exists())
-        
-        with open(self.log_path, "r") as f:
+
+        with open(self.log_path) as f:
             lines = [json.loads(line) for line in f]
-            
+
         self.assertEqual(len(lines), 1)
         event = lines[0]
         self.assertEqual(event["event_type"], "COMMAND_FINISH")
@@ -29,13 +30,31 @@ class TestAuditLogger(unittest.TestCase):
         self.assertEqual(event["duration_ms"], 12.5)
 
     def test_log_egress_blocked(self):
-        self.logger.log_egress(host="evil.attacker.com", port=443, verdict="BLOCKED", method="CONNECT")
-        with open(self.log_path, "r") as f:
+        self.logger.log_egress(
+            host="evil.attacker.com", port=443, verdict="BLOCKED", method="CONNECT"
+        )
+        with open(self.log_path) as f:
             event = json.loads(f.readline())
-            
+
         self.assertEqual(event["event_type"], "EGRESS_BLOCKED")
         self.assertEqual(event["host"], "evil.attacker.com")
         self.assertEqual(event["verdict"], "BLOCKED")
+
+    def test_log_egress_allowed(self):
+        self.logger.log_egress(
+            host="api.openai.com", port=443, verdict="ALLOWED", method="CONNECT"
+        )
+        with open(self.log_path) as f:
+            event = json.loads(f.readline())
+        self.assertEqual(event["event_type"], "EGRESS_ALLOWED")
+
+    def test_log_resource_breach(self):
+        self.logger.log_resource_breach("memory", "450M", "OOM trigger test")
+        with open(self.log_path) as f:
+            event = json.loads(f.readline())
+        self.assertEqual(event["event_type"], "RESOURCE_LIMIT_BREACH")
+        self.assertEqual(event["resource"], "memory")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,18 +1,19 @@
 """Forwarding HTTP/CONNECT Egress Allowlist Proxy for AI Sandboxes."""
 
-import socket
-import select
-import threading
 import fnmatch
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import List, Optional, Callable
-import urllib.request
+import select
+import socket
+import threading
 import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Callable, Optional
+
 
 class EgressProxyHandler(BaseHTTPRequestHandler):
     server: "EgressProxyServer"
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         # Suppress noisy console logs
         pass
 
@@ -23,7 +24,7 @@ class EgressProxyHandler(BaseHTTPRequestHandler):
             host_header = self.headers.get("Host", "")
             return host_header.split(":")[0]
 
-    def do_CONNECT(self):
+    def do_CONNECT(self) -> None:
         """Handles HTTPS tunneling via HTTP CONNECT method."""
         host = self._extract_host()
         try:
@@ -36,7 +37,9 @@ class EgressProxyHandler(BaseHTTPRequestHandler):
             self.send_response(403, "Forbidden")
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
-            self.wfile.write(f"[Aegis-Sandbox] Egress to host '{host}' is blocked by policy.\n".encode())
+            self.wfile.write(
+                f"[Aegis-Sandbox] Egress to host '{host}' is blocked by policy.\n".encode()
+            )
             return
 
         self.server.record_audit(host, port, "ALLOWED", "CONNECT")
@@ -68,22 +71,22 @@ class EgressProxyHandler(BaseHTTPRequestHandler):
         finally:
             upstream.close()
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         self._handle_http_forward()
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         self._handle_http_forward()
 
-    def do_PUT(self):
+    def do_PUT(self) -> None:
         self._handle_http_forward()
 
-    def do_DELETE(self):
+    def do_DELETE(self) -> None:
         self._handle_http_forward()
 
-    def do_HEAD(self):
+    def do_HEAD(self) -> None:
         self._handle_http_forward()
 
-    def _handle_http_forward(self):
+    def _handle_http_forward(self) -> None:
         host = self._extract_host()
         port = 80
         if not self.server.is_allowed(host):
@@ -91,16 +94,20 @@ class EgressProxyHandler(BaseHTTPRequestHandler):
             self.send_response(403, "Forbidden")
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
-            self.wfile.write(f"[Aegis-Sandbox] Egress to host '{host}' is blocked by policy.\n".encode())
+            self.wfile.write(
+                f"[Aegis-Sandbox] Egress to host '{host}' is blocked by policy.\n".encode()
+            )
             return
 
         self.server.record_audit(host, port, "ALLOWED", self.command)
-        
+
         # Read request body if present
         content_len = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_len) if content_len > 0 else None
 
-        req_headers = {k: v for k, v in self.headers.items() if k.lower() not in ["proxy-connection"]}
+        req_headers = {
+            k: v for k, v in self.headers.items() if k.lower() not in ["proxy-connection"]
+        }
         url = self.path
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"http://{host}{url}"
@@ -122,12 +129,13 @@ class EgressProxyHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(502, f"Bad Gateway: {e}")
 
+
 class EgressProxyServer(HTTPServer):
     def __init__(
         self,
         port: int = 8080,
-        allowed_domains: Optional[List[str]] = None,
-        audit_callback: Optional[Callable[[str, int, str, str], None]] = None
+        allowed_domains: Optional[list[str]] = None,
+        audit_callback: Optional[Callable[[str, int, str, str], None]] = None,
     ):
         self.allowed_domains = allowed_domains or []
         self.audit_callback = audit_callback
@@ -142,15 +150,15 @@ class EgressProxyServer(HTTPServer):
                 return True
         return False
 
-    def record_audit(self, host: str, port: int, verdict: str, method: str):
+    def record_audit(self, host: str, port: int, verdict: str, method: str) -> None:
         if self.audit_callback:
             self.audit_callback(host, port, verdict, method)
 
-    def start(self):
+    def start(self) -> None:
         self._thread = threading.Thread(target=self.serve_forever, daemon=True)
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self.shutdown()
         self.server_close()
         if self._thread:

@@ -2,11 +2,13 @@
 
 import os
 import shutil
-import time
 import subprocess
-from typing import List, Dict, Optional
-from .base import BaseBackend, ExecutionResult
+import time
+from typing import Optional
+
 from ..policy import SandboxPolicy
+from .base import BaseBackend, ExecutionResult
+
 
 class NamespaceBackend(BaseBackend):
     """Executes untrusted processes within isolated Linux User, Mount, PID, and Network namespaces."""
@@ -23,10 +25,10 @@ class NamespaceBackend(BaseBackend):
 
     def run(
         self,
-        command: List[str],
+        command: list[str],
         policy: SandboxPolicy,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None
+        env: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
     ) -> ExecutionResult:
         if not self.is_available():
             return ExecutionResult(
@@ -36,7 +38,7 @@ class NamespaceBackend(BaseBackend):
                 duration_ms=0.0,
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="missing_dependency"
+                violation_reason="missing_dependency",
             )
 
         bwrap_args = ["bwrap"]
@@ -69,11 +71,7 @@ class NamespaceBackend(BaseBackend):
         start_time = time.time()
         try:
             proc = subprocess.run(
-                full_cmd,
-                capture_output=True,
-                text=True,
-                env=exec_env,
-                timeout=timeout
+                full_cmd, capture_output=True, text=True, env=exec_env, timeout=timeout
             )
             duration_ms = (time.time() - start_time) * 1000.0
             return ExecutionResult(
@@ -82,18 +80,22 @@ class NamespaceBackend(BaseBackend):
                 stderr=proc.stderr,
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
-                violation_detected=(proc.returncode != 0 and "Operation not permitted" in proc.stderr)
+                violation_detected=(
+                    proc.returncode != 0 and "Operation not permitted" in proc.stderr
+                ),
             )
         except subprocess.TimeoutExpired as e:
             duration_ms = (time.time() - start_time) * 1000.0
+            out_str = e.stdout.decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+            err_str = e.stderr.decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or "Command execution timed out")
             return ExecutionResult(
                 returncode=124,
-                stdout=e.stdout or "",
-                stderr="Command execution timed out",
+                stdout=out_str,
+                stderr=err_str,
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="timeout"
+                violation_reason="timeout",
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000.0
@@ -104,7 +106,7 @@ class NamespaceBackend(BaseBackend):
                 duration_ms=round(duration_ms, 2),
                 backend_name=self.name,
                 violation_detected=True,
-                violation_reason="execution_error"
+                violation_reason="execution_error",
             )
 
     def teardown(self) -> None:
