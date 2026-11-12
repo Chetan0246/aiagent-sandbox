@@ -17,6 +17,9 @@ classifiers = [
 ]
 keywords = ["ai-agents", "security", "sandbox", "cgroups", "kvm", "isolation", "llm-security"]
 requires-python = ">=3.9"
+dependencies = [
+    "pyyaml>=6.0",
+]
 
 [project.scripts]
 aegis-sandbox = "aegissandbox.cli:main"
