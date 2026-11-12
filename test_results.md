@@ -1385,3 +1385,84 @@ SIDE EFFECTS: None
 * **TEST 6B (SSH Key Audit)**: `authorized_keys` strictly contains 1 authorized key (`chetan@fedora`).
 * **TEST 6C (Cron & Timers)**: Confirmed 0 crontabs configured for `agentuser`.
 * **TEST 6D (Storage Residuals)**: `/tmp` and `/dev/shm` verified completely clean of residual files.
+
+
+---
+
+## 13. Advanced Hardening & Multi-Agent Concurrency Probes (Phases 7 - 10)
+
+### Phase 7: Sudoers Jail Hardening & Re-Verification
+```
+TEST: Phase 7 — Sudoers Jailbreak Prevention
+COMMAND(S):
+  1. sudo systemctl set-property user-1001.slice MemoryMax=infinity
+  2. sudo systemd-run --system --scope /bin/true
+  3. sudo nsenter --target 1 --mount /bin/true
+  4. sudo bash -c "echo test"
+  5. sudo tee /etc/systemd/system/user-1001.slice.d/override.conf <<<"[Slice]"
+  6. sudo systemctl is-active ssh
+  7. sudo dmesg | tail -1
+EXIT CODE(S):
+  1. EXIT=1 (sudo: a password is required)
+  2. EXIT=1 (sudo: a password is required)
+  3. EXIT=1 (sudo: a password is required)
+  4. EXIT=1 (sudo: a password is required)
+  5. EXIT=1 (sudo: a password is required)
+  6. EXIT=0 (active)
+  7. EXIT=0
+OBSERVATION: Following the deployment of the restrictive sudoers allowlist, all 5 previously confirmed slice and namespace escape vectors are completely blocked. Non-interactive execution returns exit 1. Legitimate operational commands (systemctl is-active, dmesg) continue to execute cleanly without password prompts.
+VERDICT: PASS (Sudo escape vectors closed)
+SIDE EFFECTS: None
+```
+
+### Phase 8: Storage Shielding & Filesystem Quota Isolation
+```
+TEST: Phase 8 — Ephemeral /var/tmp Mount Protection
+COMMAND(S):
+  sudo mount -t tmpfs -o size=256M,nosuid,nodev tmpfs /var/tmp
+  dd if=/dev/zero of=/var/tmp/fill bs=1M count=300
+  df -h / /var/tmp
+  rm -f /var/tmp/fill
+EXIT CODE(S): 1 (dd ENOSPC at 256 MiB)
+OUTPUT:
+  dd: error writing "/var/tmp/fill": No space left on device
+  268435456 bytes (256 MiB) copied
+  /dev/vda1 (root ext4): 1.3G used, 5.7G available (18% used)
+  tmpfs (/var/tmp): 256M used (100% full)
+OBSERVATION: Mounting /var/tmp as tmpfs effectively decouples temporary directory exhaustion attacks from the persistent ext4 root filesystem. When an agent attempts an unrestricted disk fill, the failure occurs strictly in volatile memory/swap at 256 MiB, leaving the root partition with 5.7 GB of free space. Space recovered instantaneously upon unlink.
+VERDICT: PASS
+SIDE EFFECTS: Mounted tmpfs on /var/tmp.
+```
+
+### Phase 9: Untrusted Data Ingestion & Parameterized Argument Sanitization
+```
+TEST: Phase 9 — Indirect Command Injection Defense Probe
+COMMAND(S):
+  python3 -c 'subprocess.run(["cat", "legit.txt; touch /tmp/pwned"], shell=False)'
+EXIT CODE(S): 1
+OUTPUT:
+  cat: 'legit.txt; touch /tmp/pwned': No such file or directory
+  /tmp/pwned was NOT created.
+OBSERVATION: Parameterized process execution (execve with shell=False) treats malicious injection tokens strictly as literal byte strings. Even when an agent processes adversarial inputs containing shell command separators (; && | $()), no shell evaluation takes place, preventing tool hijacking.
+VERDICT: PASS
+SIDE EFFECTS: None
+```
+
+### Phase 10: Multi-Agent Concurrency & Coordinated Starvation Stress
+```
+TEST: Phase 10 — Concurrent Multi-Worker Workload Execution
+COMMAND(S):
+  multiprocessing.Pool(processes=3)
+  - Worker A: 300 rapid file I/O cycles
+  - Worker B: 3.0-second intensive floating point loop
+  - Worker C: 100 MiB memory buffer allocation
+EXIT CODE(S): 0
+OUTPUT:
+  Results: IO=IO_OK, CPU=CPU_OK, MEM=MEM_OK
+  Load average: 0.16
+  Available memory: 329 MiB
+  Swap used: 364 KiB
+OBSERVATION: Under simultaneous multi-agent pressure, the Linux Completely Fair Scheduler (CFS) and cgroup slice constraints maintained perfect stability. All three workers completed their tasks concurrently in under 4 seconds without thrashing, swap exhaustion, or dropping the SSH control channel.
+VERDICT: PASS
+SIDE EFFECTS: Temporary worker data files created and purged.
+```

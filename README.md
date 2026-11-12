@@ -105,6 +105,10 @@ The entire multi-phase battery was executed sequentially under an automated obse
 | **Adv. Phase 4**| Network Boundary | Gateway ports (22, 80, 5900, 8080) | All hypervisor management ports CLOSED/FILTERED. | **PASS** |
 | **Adv. Phase 5**| Error Drift | Read-only directory write, `fcntl` flock | Cleanly trapped errors; non-blocking lock prevented sub-agent race conditions. | **PASS** |
 | **Adv. Phase 6**| Ephemerality | Shell profiles, crontab, `/tmp` sweep | Zero residual files, zero cron entries, zero injected profile hooks. | **PASS** |
+| **Phase 7** | Sudoers Lockdown | Probing 5 blocked commands (`systemd-run`, `nsenter`, `tee`) | All 5 escape commands denied with exit 1; allowlisted commands (ssh, dmesg) active. | **PASS (ESCAPE CLOSED)** |
+| **Phase 8** | Storage Shielding | Mounting `/var/tmp` on `tmpfs` (256M) & disk fill | Fill failed at 256M on `tmpfs`; real root ext4 stayed clean at 18% used. | **PASS** |
+| **Phase 9** | Injection Defense | Parameterized `subprocess.run(shell=False)` | Command injection tokens treated as literal bytes; 0 payload execution. | **PASS** |
+| **Phase 10** | Multi-Agent Load | 3 concurrent workers (Disk I/O, CPU math, RAM buffer) | CFS scheduler balanced tasks; 0 lock thrashing; SSH responsive. | **PASS** |
 
 ---
 
