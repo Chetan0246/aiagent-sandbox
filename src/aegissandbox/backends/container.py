@@ -7,6 +7,7 @@ import subprocess
 from typing import List, Dict, Optional
 from .base import BaseBackend, ExecutionResult
 from ..policy import SandboxPolicy
+from ..seccomp import get_podman_seccomp_args, DEFAULT_SECCOMP_PATH
 
 class ContainerBackend(BaseBackend):
     """Executes untrusted processes inside rootless Podman/OCI containers."""
@@ -56,6 +57,9 @@ class ContainerBackend(BaseBackend):
 
         for cap in policy.security.drop_capabilities:
             cmd.extend(["--cap-drop", cap])
+
+        if policy.security.seccomp_profile:
+            cmd.extend(get_podman_seccomp_args())
 
         for eph in policy.security.ephemeral_dirs:
             cmd.extend(["--tmpfs", eph])
