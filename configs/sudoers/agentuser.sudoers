@@ -1,7 +1,5 @@
 # Hardened Sudoers Policy for Autonomous Agent Sandbox
-# Allows operational inspection and package sync while explicitly blocking slice-escape vectors
-
-# Permitted maintenance and inspection commands
+# Positive allowlist: only specific monitoring and package management commands are permitted
 agentuser ALL=(ALL) NOPASSWD: \
     /usr/bin/systemctl is-active *, \
     /usr/bin/systemctl status *, \
@@ -10,16 +8,12 @@ agentuser ALL=(ALL) NOPASSWD: \
     /usr/bin/apt-get update, \
     /usr/bin/apt-get install -y *
 
-# Deny-list: Explicitly block commands that escape slice or namespace boundaries
+# Explicitly forbidden commands (defense-in-depth deny list)
 agentuser ALL=(ALL) !/usr/bin/systemd-run, \
     !/usr/bin/nsenter, \
     !/usr/bin/chroot, \
     !/usr/bin/unshare, \
-    !/usr/bin/systemctl set-property *, \
-    !/usr/bin/systemctl edit *, \
-    !/usr/bin/systemctl stop user-*, \
-    !/usr/bin/systemctl restart user-*, \
     !/usr/bin/bash, \
     !/usr/bin/sh, \
     !/usr/bin/su, \
-    !/usr/bin/tee /etc/*
+    !/usr/bin/tee

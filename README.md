@@ -243,13 +243,10 @@ agentuser ALL=(ALL) !/usr/bin/systemd-run, \
     !/usr/bin/nsenter, \
     !/usr/bin/chroot, \
     !/usr/bin/unshare, \
-    !/usr/bin/systemctl set-property *, \
-    !/usr/bin/systemctl edit *, \
-    !/usr/bin/systemctl stop user-*, \
     !/usr/bin/bash, \
     !/usr/bin/sh, \
     !/usr/bin/su, \
-    !/usr/bin/tee /etc/*
+    !/usr/bin/tee
 ```
 
 ### 3. Ephemeral Storage Mounts
